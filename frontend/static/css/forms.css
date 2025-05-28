@@ -1,0 +1,144 @@
+:root {
+    --primary-color: #4a90e2;
+    --secondary-color: #f3f4f6;
+    --text-primary: #2c3e50;
+    --text-secondary: #64748b;
+    --border-color: #e2e8f0;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --blue: #A9DEF9;
+    --red: #FF6B6B;
+    --background: #F8F9FA;
+    --white: #FFFFFF;
+    --text-dark: #2D3436;
+    --text-light: #636E72;
+    --gradient: linear-gradient(135deg, #A9DEF9 0%, #D6A4FF 100%);
+}
+
+.Form-div {
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin: 30px auto;
+    background-color: #650289;
+}
+
+.loggin {
+    display: flex;
+    flex-direction: column;
+}
+.siggnup{
+    display: flex;
+    flex-direction: column;
+}
+
+.Form-div label {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-align: center;
+    color: white;
+}
+
+.Form-div button {
+    background-color: #5304bf;
+    border: none;
+    color: white;
+    padding: 3px 45px; 
+    border-radius: 3px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.Form-div p{
+    margin-top: 10px;
+    text-align: center;
+    color: white;
+}
+.input {
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    outline: none;
+    margin-bottom: 1rem;
+    transition: border-color 0.3s ease;
+    background-color: white;
+    min-width: 100%;
+}
+
+.input:focus {
+    border-color:  #dd2c46;
+}
+
+input[type="submit"] {
+    padding: 0.8rem;
+    font-size: 1rem;
+    background: #450262;
+    color: var(--white);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+input[type="submit"]:hover {
+    background: var(--gradient);
+    color: black;
+}
+
+.Form-div #signUpForm {
+    width: 100%;
+}
+
+.Form-div #signUpForm  label{
+    width: 100%;
+}
+
+.Form-div #signUpForm input  {
+    width: 45%;
+    align-self: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+@media(min-width: 480px) and (max-width: 980px) {
+    .Form-div {
+        padding: 1.5rem;
+    }
+    .signup-Form-div{
+        padding: 1.5rem;
+    }
+    .Form-div {
+        height: 100%;
+    }
+
+    label {
+        font-size: 1.2rem;
+    }
+}
+@media (max-width: 479px) {
+    .Form-div {
+        display: flex;
+        flex-direction: column;
+
+        justify-content: center;
+        align-items: center;
+        padding: 1.5rem 1rem;
+        
+    }
+
+    .Form-div label {
+        font-size: 1.2rem;
+    }
+
+    .input {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    input[type="submit"] {
+        padding: 0.6rem;
+        font-size: 0.9rem;
+    }
+}
