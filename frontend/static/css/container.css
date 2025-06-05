@@ -1,15 +1,116 @@
+:root {
+    --primary-blue: #4A90E2;
+    --light-blue: #87CEEB;
+    --sky-blue: #E3F2FD;
+    --dark-grey: #2C3E50;
+    --medium-grey: #34495E;
+    --light-grey: #ECF0F1;
+    --white: #FFFFFF;
+    --text-primary: #2C3E50;
+    --text-secondary: #7F8C8D;
+    --success: #27AE60;
+    --warning: #F39C12;
+    --danger: #E74C3C;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --border-radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Container Styles */
 .container {
     width: 100%;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     position: relative;
+    padding: 20px;
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--light-grey) 100%);
 }
 
+/* Container for different page layouts */
+.container.welcome-layout {
+    padding: 0;
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--light-grey) 50%, var(--primary-blue) 100%);
+}
+
+.container.auth-layout {
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--light-grey) 100%);
+    padding: 40px 20px;
+}
+
+.container.home-layout {
+    background: transparent;
+    padding: 0;
+    align-items: flex-start;
+    justify-content: flex-start;
+    min-height: calc(100vh - 80px);
+}
+
+/* Responsive Container */
 @media (max-width: 768px) {
     .container {
         flex-direction: column;
+        padding: 16px;
+    }
+    
+    .container.auth-layout {
+        padding: 20px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 12px;
+    }
+    
+    .container.auth-layout {
+        padding: 16px 12px;
+    }
+}
+
+/* Content wrapper for better organization */
+.content-wrapper {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* Flexbox utilities for container content */
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+/* Spacing utilities */
+.gap-sm { gap: 8px; }
+.gap-md { gap: 16px; }
+.gap-lg { gap: 24px; }
+.gap-xl { gap: 32px; }
+
+/* Container animations */
+.container.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
