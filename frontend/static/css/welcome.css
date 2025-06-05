@@ -1,89 +1,432 @@
+:root {
+    --primary-blue: #4A90E2;
+    --light-blue: #87CEEB;
+    --sky-blue: #E3F2FD;
+    --dark-grey: #2C3E50;
+    --medium-grey: #34495E;
+    --light-grey: #ECF0F1;
+    --white: #FFFFFF;
+    --text-primary: #2C3E50;
+    --text-secondary: #7F8C8D;
+    --success: #27AE60;
+    --danger: #E74C3C;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --border-radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Welcome Page Specific Styles */
 body {
     overflow: hidden;
-    background-color: #c6c4b7;
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--light-grey) 50%, var(--primary-blue) 100%);
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%234A90E2' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    animation: float 20s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
 }
 
 .container {
-    margin-top: 58px;
+    margin-top: 80px;
     width: 100%;
-    height: 100%;
+    height: calc(100vh - 80px);
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    background-color: #430260;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
 }
 
 .welcome-container {
     width: 100%;
-    height: 100%;
+    max-width: 1200px;
+    height: 80vh;
     display: flex;
     align-items: center;
-
-}
-
-.welcome-container .left, .welcome-container .right {
-    width: 50%;
-    height: 95%;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    background: var(--white);
+    margin: 0 20px;
 }
 
 .welcome-container .left {
-    background: url("https://img.freepik.com/free-vector/gradient-facebook-post-frame_52683-146743.jpg?semt=ais_hybrid");
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(135deg, 
+        rgba(74, 144, 226, 0.9) 0%, 
+        rgba(135, 206, 235, 0.8) 100%),
+        url("https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80");
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
-    margin-left: 10px;
-    border-radius: 5px 0 0 5px;
-    box-sizing: border-box;
-    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.welcome-container .left::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+        rgba(74, 144, 226, 0.8) 0%, 
+        rgba(135, 206, 235, 0.6) 100%);
+}
+
+.welcome-container .left .hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    color: var(--white);
+    padding: 40px;
+}
+
+.welcome-container .left .hero-content h1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 20px;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    letter-spacing: -1px;
+}
+
+.welcome-container .left .hero-content p {
+    font-size: 1.3rem;
+    font-weight: 300;
+    opacity: 0.95;
+    margin-bottom: 30px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.welcome-container .left .features {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: var(--transition);
+}
+
+.feature-item:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.feature-item i {
+    font-size: 2rem;
+    margin-bottom: 8px;
+}
+
+.feature-item span {
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
 }
 
 .welcome-container .right {
-    background-color: #430260;
-    color: white;
-    margin-right: 30px;
-    box-sizing: border-box;
-    border-radius: 0 5px 5px 0;
-    justify-content: space-around;
-}
-
-.welcome-container .right .welcome-message {
-    z-index: 999;
-    margin-top: 0;
-}
-
-.welcome-container div {
-    width: 100%;
-    text-align: center;
-}
-
-.welcome-container .buttons {
-    width: 80%;
+    width: 40%;
+    height: 100%;
+    background: var(--white);
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 0;
-    margin-bottom: auto;
+    padding: 60px 40px;
+    position: relative;
 }
 
-.welcome-container .buttons button {
-    width: 80%;
-    border: none;
-    background-color: #FD2268;
+.welcome-container .right::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+    border-radius: 50%;
+    opacity: 0.1;
+    transform: translate(50%, -50%);
+}
+
+.welcome-container .right::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--light-blue), var(--sky-blue));
+    border-radius: 50%;
+    opacity: 0.1;
+    transform: translate(-50%, 50%);
+}
+
+.welcome-message {
     text-align: center;
-    color: white;
-    padding: 10px;
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 2;
+}
+
+.welcome-message h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+}
+
+.welcome-message h3 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 280px;
+    position: relative;
+    z-index: 2;
+}
+
+.buttons button {
+    width: 100%;
+    padding: 16px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
-    font-size: large;
+    transition: var(--transition);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.buttons button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.buttons button:hover::before {
+    left: 100%;
+}
+
+#loginBtn {
+    background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+    color: var(--white);
+    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+}
+
+#loginBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(74, 144, 226, 0.4);
+}
+
+#signUpBtn {
+    background: var(--white);
+    color: var(--primary-blue);
+    border: 2px solid var(--primary-blue);
+}
+
+#signUpBtn:hover {
+    background: var(--primary-blue);
+    color: var(--white);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(74, 144, 226, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .welcome-container .left .hero-content h1 {
+        font-size: 3rem;
+    }
+    
+    .welcome-container .left .hero-content p {
+        font-size: 1.1rem;
+    }
+    
+    .welcome-message h1 {
+        font-size: 2.2rem;
+    }
 }
 
 @media (max-width: 768px) {
     .container {
+        margin-top: 60px;
+        height: calc(100vh - 60px);
+    }
+    
+    .welcome-container {
         flex-direction: column;
+        height: 90vh;
+        margin: 0 16px;
+    }
+    
+    .welcome-container .left,
+    .welcome-container .right {
+        width: 100%;
+        height: 50%;
+    }
+    
+    .welcome-container .left .hero-content {
+        padding: 20px;
+    }
+    
+    .welcome-container .left .hero-content h1 {
+        font-size: 2.5rem;
+        margin-bottom: 16px;
+    }
+    
+    .welcome-container .left .hero-content p {
+        font-size: 1rem;
+        margin-bottom: 20px;
+    }
+    
+    .welcome-container .left .features {
+        gap: 16px;
+    }
+    
+    .feature-item {
+        padding: 12px;
+        min-width: 80px;
+    }
+    
+    .feature-item i {
+        font-size: 1.5rem;
+    }
+    
+    .feature-item span {
+        font-size: 0.8rem;
+    }
+    
+    .welcome-container .right {
+        padding: 40px 30px;
+    }
+    
+    .welcome-message h1 {
+        font-size: 2rem;
+    }
+    
+    .welcome-message h3 {
+        font-size: 1rem;
+    }
+    
+    .buttons {
+        max-width: 240px;
+    }
+    
+    .buttons button {
+        padding: 14px 20px;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .welcome-container {
+        margin: 0 12px;
+        border-radius: 16px;
+    }
+    
+    .welcome-container .left .hero-content h1 {
+        font-size: 2rem;
+    }
+    
+    .welcome-container .left .hero-content p {
+        font-size: 0.9rem;
+    }
+    
+    .welcome-container .right {
+        padding: 30px 20px;
+    }
+    
+    .welcome-message h1 {
+        font-size: 1.8rem;
+    }
+    
+    .welcome-message h3 {
+        font-size: 0.95rem;
+    }
+    
+    .buttons {
+        max-width: 200px;
+    }
+    
+    .buttons button {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+}
+
+/* Animation for welcome elements */
+.welcome-message {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.buttons {
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+.welcome-container .left .hero-content {
+    animation: fadeInLeft 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
     }
 }
