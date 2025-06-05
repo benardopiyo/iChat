@@ -1,41 +1,273 @@
-#privateMessageForm {
-    width: 400px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin: 3px;
-    position: absolute;
-    display: none; 
-    z-index: 999;
-    opacity: 1;
+:root {
+  --primary-blue: #4A90E2;
+  --light-blue: #87CEEB;
+  --sky-blue: #E3F2FD;
+  --dark-grey: #2C3E50;
+  --medium-grey: #34495E;
+  --light-grey: #ECF0F1;
+  --white: #FFFFFF;
+  --text-primary: #2C3E50;
+  --text-secondary: #7F8C8D;
+  --success: #27AE60;
+  --warning: #F39C12;
+  --danger: #E74C3C;
+  --shadow: rgba(0, 0, 0, 0.1);
+  --border-radius: 12px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#privateMessageForm input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ccc;
-    outline: none;
-  }
+/* Private Message Form */
+#privateMessageForm {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  padding: 16px;
+  display: none;
+  z-index: 999;
+  border: 1px solid var(--light-grey);
+  border-top: none;
+}
 
-  #privateMessageForm #btn {
-    width: 30%;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    margin-left: auto;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
+#privateMessageForm.show {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideDown 0.3s ease-out;
+}
 
-  #privateMessageForm #btn:hover {
-    background-color: #45a049;
+@keyframes slideDown {
+  from {
+      opacity: 0;
+      transform: translateY(-10px);
   }
+  to {
+      opacity: 1;
+      transform: translateY(0);
+  }
+}
 
+#privateMessageForm input[type="text"] {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--light-grey);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: var(--transition);
+  background: var(--sky-blue);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+#privateMessageForm input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  background: var(--white);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+#privateMessageForm input[type="text"]::placeholder {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+#privateMessageForm .btn,
+#privateMessageForm input[type="submit"] {
+  background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+  color: var(--white);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  align-self: flex-end;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#privateMessageForm .btn:hover,
+#privateMessageForm input[type="submit"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+}
+
+#privateMessageForm .btn:active,
+#privateMessageForm input[type="submit"]:active {
+  transform: translateY(0);
+}
+
+/* Private Message Form Header */
+#privateMessageForm::before {
+  content: 'Send Message';
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--light-grey);
+}
+
+/* Typing Indicator */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--sky-blue);
+  border-radius: 16px;
+  margin: 8px 0;
+  align-self: flex-start;
+  max-width: 80px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  background: var(--primary-blue);
+  border-radius: 50%;
+  animation: typingDots 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typingDots {
+  0%, 80%, 100% {
+      transform: scale(0.8);
+      opacity: 0.5;
+  }
+  40% {
+      transform: scale(1);
+      opacity: 1;
+  }
+}
+
+.typing-img {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 8px 0;
+}
+
+.typing-img img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--white);
+  padding: 4px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* Message Form Variants */
+.privateMessageForm.compact {
+  padding: 12px;
+}
+
+.privateMessageForm.compact input[type="text"] {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.privateMessageForm.compact .btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Success/Error States */
+.privateMessageForm.success {
+  border-left: 4px solid var(--success);
+}
+
+.privateMessageForm.error {
+  border-left: 4px solid var(--danger);
+}
+
+.privateMessageForm.success input[type="text"] {
+  border-color: var(--success);
+}
+
+.privateMessageForm.error input[type="text"] {
+  border-color: var(--danger);
+}
+
+/* Loading State */
+.privateMessageForm .btn.loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.privateMessageForm .btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid transparent;
+  border-top-color: var(--white);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  #privateMessageForm {
+      padding: 12px;
+      margin: 0 -4px;
+  }
+  
+  #privateMessageForm input[type="text"] {
+      padding: 10px 14px;
+      font-size: 14px;
+  }
+  
+  #privateMessageForm .btn {
+      padding: 8px 16px;
+      font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  #privateMessageForm {
+      padding: 10px;
+      border-radius: 0 0 6px 6px;
+  }
+  
+  #privateMessageForm input[type="text"] {
+      padding: 8px 12px;
+      font-size: 13px;
+  }
+  
+  #privateMessageForm .btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      width: 100%;
+      margin-top: 4px;
+  }
+  
   .typing-img img {
-    width: 5px;
-    height: 5px;
+      width: 32px;
+      height: 32px;
   }
+}
