@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/welcome.js
+
 export const welcomePage = `
 <div class="welcome-container">
     <div class="left">

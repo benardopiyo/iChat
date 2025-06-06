@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/header.js
+
 export const headerContext = `
    <div class="search-bar">
         <div class="search-container">

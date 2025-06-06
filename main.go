@@ -1,3 +1,5 @@
+// File: main.go
+
 package main
 
 import (

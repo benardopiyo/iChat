@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/login.js
+
 export const signinContext = `
     <div class="Form-div">
         <form class="loggin siggnup" id="loginForm">

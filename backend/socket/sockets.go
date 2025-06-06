@@ -1,3 +1,5 @@
+// File: backend/socket/sockets.go
+
 package socket
 
 import (

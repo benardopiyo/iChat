@@ -1,3 +1,5 @@
+// File: frontend/static/js/loadPosts.js
+
 import { notify } from "./pageContext/notification.js";
 
 export let posts;

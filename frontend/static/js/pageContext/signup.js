@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/signup.js
+
 export const signupContext = `
     <div class="Form-div">
         <form class="loggin siggnup" id="signUpForm">

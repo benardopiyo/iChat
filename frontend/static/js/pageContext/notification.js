@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/notification.js
+
 export const notify = (message, color) => {
     const container = document.querySelector(".search-bar")
 

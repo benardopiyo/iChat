@@ -1,3 +1,5 @@
+// File: frontend/static/js/pageContext/publicHome.js
+
 export const publicHomePage = `
     <div class="public-hero">
         <div class="hero-content">
