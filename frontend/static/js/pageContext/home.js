@@ -17,7 +17,7 @@ export const homePageContext = `
                 </div>
             </div>
         </div>
-
+        
         <!-- Quick Actions -->
         <div class="quick-actions">
             <button id="quickCreatePost" class="quick-action-btn">
@@ -29,7 +29,7 @@ export const homePageContext = `
                 <span>Profile</span>
             </button>
         </div>
-
+        
         <!-- Online Users Section -->
         <div class="online-users-section">
             <div class="section-header">
@@ -41,7 +41,7 @@ export const homePageContext = `
             </div>
             <div class="users-container" id="userList"></div>
         </div>
-
+        
         <!-- Recent Chats Section -->
         <div class="recent-chats-section">
             <div class="section-header">
@@ -58,7 +58,7 @@ export const homePageContext = `
             </div>
         </div>
     </div>
-
+    
     <!-- Main Content Area -->
     <div class="main-content">
         <!-- Content Header -->
@@ -74,18 +74,18 @@ export const homePageContext = `
                 </button>
             </div>
         </div>
-
+        
         <!-- Posts Feed -->
         <div class="posts-section"></div>
     </div>
-
+    
     <!-- Right Sidebar - Categories & Stats -->
     <div class="right-sidebar">
         <!-- Categories -->
         <div class="categories-widget">
             <h4>Categories</h4>
             <div class="category-list">
-                <div class="category-item" data-category="all">
+                <div class="category-item active" data-category="all">
                     <i class="fas fa-globe"></i>
                     <span>All Posts</span>
                 </div>
@@ -111,7 +111,7 @@ export const homePageContext = `
                 </div>
             </div>
         </div>
-
+        
         <!-- Community Stats -->
         <div class="stats-widget">
             <h4>Community Stats</h4>
@@ -137,7 +137,7 @@ export const homePageContext = `
                 </div>
             </div>
         </div>
-
+        
         <!-- Forum Rules -->
         <div class="rules-widget">
             <h4>Community Guidelines</h4>
@@ -149,7 +149,7 @@ export const homePageContext = `
             </ul>
         </div>
     </div>
-
+    
     <!-- Enhanced Chat Interface -->
     <div class="chat-interface" id="chatInterface">
         <div class="chat-header">
@@ -176,11 +176,17 @@ export const homePageContext = `
             </div>
             <div class="input-container">
                 <input type="text" id="chatInput" placeholder="Type your message...">
+                <input type="hidden" class="receiverId" value="">
                 <button id="sendMessage" class="send-btn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- Messages Thread -->
+    <div class="messageThread">
+        <!-- Message threads will be populated here -->
     </div>
 
     <!-- Create Post Modal -->
@@ -202,7 +208,7 @@ export const homePageContext = `
             </div>
             <div class="form-group">
                 <label for="postContent">Content</label>
-                <textarea id="textarea" name="content" placeholder="Share your thoughts with the community..." required></textarea>
+                <textarea id="postContent" name="content" placeholder="Share your thoughts with the community..." required></textarea>
             </div>
             <div class="form-group">
                 <label>Categories (select one or more)</label>
@@ -243,7 +249,7 @@ export const homePageContext = `
             </div>
         </form>
     </div>
-
+    
     <!-- User Panel -->
     <div class="userPanel">
         <div class="userdetails">
