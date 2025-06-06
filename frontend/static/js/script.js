@@ -21,7 +21,7 @@ const isLoggedIn = () => {
 const handleRoutes = () => {
     const path = window.location.pathname;
     console.log("Current route:", path);
-    
+
     switch (path) {
         case "/welcome":
             loadWelcomePage(false);
@@ -51,12 +51,12 @@ const loadPublicHomePage = () => {
     container.className = "container public-layout";
     header.innerHTML = headerContext;
     container.innerHTML = publicHomePage;
-    
+
     loadPosts(null, true);
-    
+
     const loginBtn = document.getElementById("publicLoginBtn");
     const signupBtn = document.getElementById("publicSignupBtn");
-    
+
     if (loginBtn) loginBtn.addEventListener("click", () => loadSignIn());
     if (signupBtn) signupBtn.addEventListener("click", () => loadSignUp());
 };
@@ -64,21 +64,26 @@ const loadPublicHomePage = () => {
 // AUTHENTICATED HOME PAGE
 const loadAuthenticatedHomePage = () => {
     const user = JSON.parse(localStorage.getItem("user"));
-    
+
     container.className = "container home-layout";
     header.innerHTML = headerContext;
     container.innerHTML = homePageContext;
-    
+
     // Setup WebSocket
     ws = new WebSocket("ws://localhost:8080/ws");
     ws.onopen = () => {
         console.log("WebSocket connected");
         ws.send(JSON.stringify({ type: "user", name: user.username, id: user.id }));
     };
-    
+
     setupAuthenticatedUI(user);
     loadPosts(ws, false);
-    setupCreatePostModal(ws);
+
+    // IMPORTANT: Setup create post modal AFTER DOM is ready
+    setTimeout(() => {
+        setupCreatePostModal(ws);
+    }, 100);
+
     loadHomePageListeners(ws);
     handleMessages(ws);
     fetchUserMessages(user.id);
@@ -89,21 +94,28 @@ const setupAuthenticatedUI = (user) => {
     // Setup header
     document.querySelector("#user-inbox").innerHTML = `<i class="fas fa-envelope"><span class="newMessage-notification">0</span></i>`;
     document.querySelector(".user-profile-nav-link").innerHTML = `<i class="fa-regular fa-user"></i>`;
-    
+
     // Setup search
     const searchContainer = document.querySelector(".search-wrapper");
-    searchContainer.innerHTML = `
-        <div class="search-input-container">
-            <i class="fas fa-search search-icon"></i>
-            <input type="text" placeholder="Search posts...">
-        </div>
-    `;
-    
+    if (searchContainer) {
+        searchContainer.innerHTML = `
+            <div class="search-input-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" placeholder="Search posts...">
+            </div>
+        `;
+    }
+
     // Setup user details
-    document.getElementById("userNickName").textContent = user.username;
-    document.getElementById("user-fullname").textContent = `${user.firstname} ${user.lastname}`;
-    document.getElementById("user-email").textContent = user.email;
-    document.getElementById("user-age").textContent = user.age;
+    const userNickName = document.getElementById("userNickName");
+    const userFullname = document.getElementById("user-fullname");
+    const userEmail = document.getElementById("user-email");
+    const userAge = document.getElementById("user-age");
+
+    if (userNickName) userNickName.textContent = user.username;
+    if (userFullname) userFullname.textContent = `${user.firstname} ${user.lastname}`;
+    if (userEmail) userEmail.textContent = user.email;
+    if (userAge) userAge.textContent = user.age;
 };
 
 // WELCOME PAGE
@@ -137,7 +149,7 @@ const loadSignUp = (pushState = true) => {
 const attachWelcomePageListeners = () => {
     const login = document.getElementById("loginBtn");
     const signUp = document.getElementById("signUpBtn");
-    
+
     if (login) login.addEventListener("click", () => loadSignIn());
     if (signUp) signUp.addEventListener("click", () => loadSignUp());
 };
@@ -147,7 +159,7 @@ const attachAuthListeners = () => {
     const loginBtn = document.getElementById("loginBtn");
     const loginForm = document.querySelector("#loginForm");
     const signupForm = document.getElementById("signUpForm");
-    
+
     if (signUpBtn) signUpBtn.addEventListener("click", () => loadSignUp());
     if (loginBtn) loginBtn.addEventListener("click", () => loadSignIn());
     if (loginForm) loginForm.addEventListener("submit", handleLogin);
@@ -159,7 +171,7 @@ const handleLogin = async (e) => {
     e.preventDefault();
     const name = document.querySelector("input[name='email']").value;
     const password = document.querySelector("input[name='password']").value;
-    
+
     try {
         const response = await fetch("/login", {
             method: 'POST',
@@ -167,7 +179,7 @@ const handleLogin = async (e) => {
             headers: { 'Content-Type': 'application/json' },
         });
         const data = await response.json();
-        
+
         if (response.status === 200) {
             localStorage.setItem("sessionToken", data.session_token);
             localStorage.setItem("user", JSON.stringify(data));
@@ -192,28 +204,28 @@ const handleSignup = async (e) => {
     const age = parseInt(document.querySelector("input[name='age']").value);
     const email = document.querySelector("input[name='email']").value;
     const password = document.querySelector("input[name='password']").value;
-    
+
     if (password.length < 8) {
         notify("Password must be at least 8 characters long.", "#E74C3C");
         return;
     }
-    
+
     try {
         const res = await fetch("/signup", {
             method: "POST",
             body: JSON.stringify({
-                Username: username, 
-                FirstName: firstName, 
-                LastName: lastName, 
-                Age: age, 
-                Gender: gender, 
-                Email: email, 
+                Username: username,
+                FirstName: firstName,
+                LastName: lastName,
+                Age: age,
+                Gender: gender,
+                Email: email,
                 Password: password
             }),
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
         });
         const data = await res.json();
-        
+
         if (res.status === 201) {
             notify("Account created successfully!", "#27AE60");
             loadSignIn();
@@ -226,179 +238,212 @@ const handleSignup = async (e) => {
     }
 };
 
-// CREATE POST MODAL FUNCTIONALITY
+// SIMPLE CREATE POST MODAL - JUST THE WORKING PARTS
 const setupCreatePostModal = (ws) => {
-    const showPostBtn = document.getElementById("showPostDiv");
-    const quickCreateBtn = document.getElementById("quickCreatePost");
-    const createPostHeaderBtn = document.querySelector(".create-post-btn");
-    const createPostModal = document.querySelector(".create-post");
-    const closePostModal = document.getElementById("closePostModal");
-    const cancelPost = document.getElementById("cancelPost");
-    const modalOverlay = document.getElementById("modalOverlay");
-    const postForm = document.getElementById("createPostForm");
-    
     console.log("Setting up create post modal...");
-    console.log("Elements found:", {
-        showPostBtn: !!showPostBtn,
-        quickCreateBtn: !!quickCreateBtn,
-        createPostHeaderBtn: !!createPostHeaderBtn,
-        createPostModal: !!createPostModal,
-        modalOverlay: !!modalOverlay,
-        postForm: !!postForm
-    });
-    
-    const showCreatePostModal = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        console.log("Showing create post modal");
-        
-        if (createPostModal && modalOverlay) {
-            createPostModal.classList.add("active");
-            modalOverlay.classList.add("active");
-            document.body.style.overflow = "hidden";
-            
-            // Focus on title input
-            const titleInput = createPostModal.querySelector("input[name='title']");
-            if (titleInput) {
-                setTimeout(() => titleInput.focus(), 100);
-            }
-        }
-    };
-    
-    const hideCreatePostModal = (e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        console.log("Hiding create post modal");
-        
-        if (createPostModal && modalOverlay) {
-            createPostModal.classList.remove("active");
-            modalOverlay.classList.remove("active");
-            document.body.style.overflow = "";
-        }
-    };
-    
-    // Add event listeners to all create post buttons
-    if (showPostBtn) {
-        showPostBtn.addEventListener("click", showCreatePostModal);
-        console.log("Added listener to floating button");
-    }
-    
-    if (quickCreateBtn) {
-        quickCreateBtn.addEventListener("click", showCreatePostModal);
-        console.log("Added listener to quick create button");
-    }
-    
-    if (createPostHeaderBtn) {
-        createPostHeaderBtn.addEventListener("click", showCreatePostModal);
-        console.log("Added listener to header create button");
-    }
-    
-    // Add event listeners to close buttons
-    if (closePostModal) {
-        closePostModal.addEventListener("click", hideCreatePostModal);
-        console.log("Added listener to close button");
-    }
-    
-    if (cancelPost) {
-        cancelPost.addEventListener("click", hideCreatePostModal);
-        console.log("Added listener to cancel button");
-    }
-    
-    // Close modal when clicking overlay (but not the modal itself)
-    if (modalOverlay) {
-        modalOverlay.addEventListener("click", (e) => {
-            if (e.target === modalOverlay) {
-                hideCreatePostModal(e);
-            }
+
+    // Wait for DOM to be ready
+    const initModal = () => {
+        // Get elements
+        const showPostBtn = document.getElementById("showPostDiv");
+        const quickCreateBtn = document.getElementById("quickCreatePost");
+        const headerCreateBtn = document.querySelector(".create-post-btn");
+        const modal = document.querySelector(".create-post");
+        const overlay = document.getElementById("modalOverlay");
+        const closeBtn = document.getElementById("closePostModal");
+        const cancelBtn = document.getElementById("cancelPost");
+        const form = document.getElementById("createPostForm");
+
+        console.log("Found elements:", {
+            showPostBtn: !!showPostBtn,
+            quickCreateBtn: !!quickCreateBtn,
+            headerCreateBtn: !!headerCreateBtn,
+            modal: !!modal,
+            overlay: !!overlay,
+            closeBtn: !!closeBtn,
+            cancelBtn: !!cancelBtn,
+            form: !!form
         });
-        console.log("Added listener to modal overlay");
-    }
-    
-    // Handle form submission
-    if (postForm) {
-        postForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            
-            const title = postForm.querySelector("input[name='title']").value.trim();
-            const content = postForm.querySelector("textarea[name='content']").value.trim();
-            const choices = postForm.querySelectorAll("input[type='checkbox']:checked");
-            const categories = Array.from(choices).map(choice => choice.value).join(" ");
-            
-            if (!title || !content) {
-                notify("Please fill in both title and content", "#E74C3C");
-                return;
+
+        // Show modal function
+        const showModal = () => {
+            console.log("Opening modal");
+            if (modal && overlay) {
+                modal.classList.add("active");
+                overlay.classList.add("active");
+                document.body.style.overflow = "hidden";
+
+                // Focus title input
+                setTimeout(() => {
+                    const titleInput = modal.querySelector("input[name='title']");
+                    if (titleInput) titleInput.focus();
+                }, 100);
             }
-            
-            try {
-                const response = await fetch("/createPost", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({title, content, categories, identity: "post"}),
-                });
-                
-                const respData = await response.json();
-                
-                if (response.status === 201) {
-                    notify("Post created successfully!", "#27AE60");
-                    const user = JSON.parse(localStorage.getItem("user"));
-                    const newPost = {
-                        type: "new_post",
-                        id: respData.postId,
-                        name: user.username,
-                        title: title,
-                        content: content,
-                        categories: categories,
-                        timestamp: new Date().toISOString(),
-                    };
-                    
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify(newPost));
-                    }
-                    
-                    // Reset form and close modal
-                    postForm.reset();
-                    hideCreatePostModal();
-                } else {
-                    notify(respData.message || "Failed to create post", "#E74C3C");
+        };
+
+        // Hide modal function
+        const hideModal = () => {
+            console.log("Closing modal");
+            if (modal && overlay) {
+                modal.classList.remove("active");
+                overlay.classList.remove("active");
+                document.body.style.overflow = "";
+
+                // Reset form
+                if (form) form.reset();
+            }
+        };
+
+        // Add click handlers to open modal
+        if (showPostBtn) {
+            showPostBtn.onclick = (e) => {
+                e.preventDefault();
+                console.log("Floating button clicked");
+                showModal();
+            };
+        }
+
+        if (quickCreateBtn) {
+            quickCreateBtn.onclick = (e) => {
+                e.preventDefault();
+                console.log("Quick create clicked");
+                showModal();
+            };
+        }
+
+        if (headerCreateBtn) {
+            headerCreateBtn.onclick = (e) => {
+                e.preventDefault();
+                console.log("Header button clicked");
+                showModal();
+            };
+        }
+
+        // Add click handlers to close modal
+        if (closeBtn) {
+            closeBtn.onclick = (e) => {
+                e.preventDefault();
+                hideModal();
+            };
+        }
+
+        if (cancelBtn) {
+            cancelBtn.onclick = (e) => {
+                e.preventDefault();
+                hideModal();
+            };
+        }
+
+        // Close when clicking overlay
+        if (overlay) {
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    hideModal();
                 }
-            } catch (error) {
-                console.error("Error creating post:", error);
-                notify("An error occurred. Try again.", "#E74C3C");
-            }
-        });
-        console.log("Added form submission handler");
-    }
-    
-    // Prevent modal from closing when clicking inside it
-    if (createPostModal) {
-        createPostModal.addEventListener("click", (e) => {
-            e.stopPropagation();
-        });
-    }
-    
-    // Make hideCreatePostModal available globally
-    window.hideCreatePostModal = hideCreatePostModal;
+            };
+        }
+
+        // Prevent modal from closing when clicking inside
+        if (modal) {
+            modal.onclick = (e) => {
+                e.stopPropagation();
+            };
+        }
+
+        // Handle form submission
+        if (form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                console.log("Form submitted");
+
+                const formData = new FormData(form);
+                const title = formData.get("title")?.trim();
+                const content = formData.get("content")?.trim();
+
+                // Get checked categories
+                const checkboxes = form.querySelectorAll("input[type='checkbox']:checked");
+                const categories = Array.from(checkboxes).map(cb => cb.value).join(" ");
+
+                if (!title || !content) {
+                    alert("Please fill in both title and content");
+                    return;
+                }
+
+                console.log("Submitting:", { title, content, categories });
+
+                try {
+                    const response = await fetch("/createPost", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            title,
+                            content,
+                            categories,
+                            identity: "post"
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        console.log("Post created successfully");
+
+                        // Send via websocket if available
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            const user = JSON.parse(localStorage.getItem("user"));
+                            ws.send(JSON.stringify({
+                                type: "new_post",
+                                id: data.postId,
+                                name: user.username,
+                                title,
+                                content,
+                                categories,
+                                timestamp: new Date().toISOString()
+                            }));
+                        }
+
+                        // Close modal and reset form
+                        hideModal();
+                        alert("Post created successfully!");
+
+                    } else {
+                        console.error("Failed to create post:", data);
+                        alert(data.message || "Failed to create post");
+                    }
+
+                } catch (error) {
+                    console.error("Error creating post:", error);
+                    alert("An error occurred. Please try again.");
+                }
+            };
+        }
+
+        // Make functions global for debugging
+        window.showCreatePostModal = showModal;
+        window.hideCreatePostModal = hideModal;
+
+        console.log("Modal setup complete");
+    };
+
+    // Run initialization
+    initModal();
 };
 
 // USER LIST MANAGEMENT
 const updateUserList = (msg, userData) => {
     const userListContainer = document.getElementById("userList");
     const onlineCount = document.getElementById("onlineCount");
-    
+
     if (!userListContainer) return;
-    
+
     const currentUser = JSON.parse(localStorage.getItem("user"));
     const onlineUsers = msg.data.filter(u => u.id !== userData.id);
-    
+
     // Update online count
     if (onlineCount) {
         onlineCount.textContent = onlineUsers.length;
     }
-    
+
     if (onlineUsers.length === 0) {
         userListContainer.innerHTML = `
             <div class="no-users">
@@ -408,7 +453,7 @@ const updateUserList = (msg, userData) => {
         `;
         return;
     }
-    
+
     userListContainer.innerHTML = onlineUsers.map(user => `
         <div class="user-item">
             <button type="button" class="user-button" data-userid="${user.id}">
@@ -432,7 +477,7 @@ const updateUserList = (msg, userData) => {
             </div>
         </div>
     `).join("");
-    
+
     // Add click handlers for users
     setupUserClickHandlers();
 };
@@ -441,18 +486,18 @@ const setupUserClickHandlers = () => {
     const userButtons = document.querySelectorAll('.user-button');
     const chatSendBtns = document.querySelectorAll('.chat-send-btn');
     const chatInputs = document.querySelectorAll('.chat-input');
-    
+
     userButtons.forEach(button => {
         button.addEventListener('click', () => {
             const userId = button.dataset.userid;
             const chatForm = document.getElementById(`chatForm_${userId}`);
             const isActive = chatForm.classList.contains('active');
-            
+
             // Close all other chat forms
             document.querySelectorAll('.chat-form').forEach(form => {
                 form.classList.remove('active');
             });
-            
+
             // Toggle current form
             if (!isActive) {
                 chatForm.classList.add('active');
@@ -460,13 +505,13 @@ const setupUserClickHandlers = () => {
             }
         });
     });
-    
+
     chatSendBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             sendQuickMessage(btn.dataset.receiver);
         });
     });
-    
+
     chatInputs.forEach(input => {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -479,34 +524,34 @@ const setupUserClickHandlers = () => {
 const sendQuickMessage = async (receiverId) => {
     const input = document.querySelector(`.chat-input[data-receiver="${receiverId}"]`);
     const message = input.value.trim();
-    
+
     if (!message) return;
-    
+
     const user = JSON.parse(localStorage.getItem("user"));
-    
+
     try {
         const response = await fetch("/privateMessage", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 message: message,
                 receiver: receiverId,
                 sender: user.id,
                 name: user.username,
                 seen: false,
-                created: new Date().toLocaleString('en-US', {hour12: false})
+                created: new Date().toLocaleString('en-US', { hour12: false })
             })
         });
-        
+
         const resBody = await response.json();
         if (response.status === 200) {
-            ws.send(JSON.stringify({"type": "message", "data": resBody.data}));
+            ws.send(JSON.stringify({ "type": "message", "data": resBody.data }));
             input.value = "";
-            
+
             // Close the chat form
             const chatForm = document.getElementById(`chatForm_${receiverId}`);
             chatForm.classList.remove('active');
-            
+
             notify("Message sent!", "#27AE60");
             fetchUserMessages(user.id);
         }
@@ -525,10 +570,10 @@ const setupChatInterface = (ws) => {
     const inbox = document.querySelector("#user-inbox");
     const messageThread = document.querySelector(".messageThread");
     const chatWrapper = document.querySelector(".chat-wrapper");
-    
+
     if (chatWrapper) chatWrapper.style.display = "none";
     if (messageThread) messageThread.style.display = "none";
-    
+
     if (inbox) {
         inbox.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -541,44 +586,44 @@ const setupChatInterface = (ws) => {
             }
         });
     }
-    
+
     setupMainChatInput(ws);
 };
 
 const setupMainChatInput = (ws) => {
     const sendBtn = document.querySelector(".input-container #sendBtn");
     const messageInput = document.querySelector(".input-container #messageInput");
-    
+
     if (sendBtn && messageInput) {
         const sendMessage = async () => {
             const receiverId = document.querySelector(".input-container .receiverId").value;
             const message = messageInput.value.trim();
-            
+
             if (!message || !receiverId) return;
-            
+
             const user = JSON.parse(localStorage.getItem("user"));
-            
+
             const response = await fetch("/privateMessage", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     message: message,
                     receiver: receiverId,
                     sender: user.id,
                     name: user.username,
                     seen: false,
-                    created: new Date().toLocaleString('en-US', {hour12: false})
+                    created: new Date().toLocaleString('en-US', { hour12: false })
                 })
             });
-            
+
             const resBody = await response.json();
             if (response.status === 200) {
-                ws.send(JSON.stringify({"type": "message", "data": resBody.data}));
+                ws.send(JSON.stringify({ "type": "message", "data": resBody.data }));
                 messageInput.value = "";
                 fetchUserMessages(user.id);
             }
         };
-        
+
         sendBtn.addEventListener("click", sendMessage);
         messageInput.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -595,7 +640,7 @@ const handleWS = (ws, userData) => {
         try {
             const msg = JSON.parse(event.data);
             const user = JSON.parse(localStorage.getItem("user"));
-            
+
             switch (msg.type) {
                 case "user_list":
                     updateUserList(msg, userData);
@@ -645,39 +690,39 @@ const loadHomePageListeners = (ws) => {
             }
         });
     }
-    
+
     // User profile panel
     const profileBtn = document.querySelector(".user-profile-nav-link");
     const userPanel = document.querySelector(".userPanel");
     const quickProfileBtn = document.getElementById("quickProfile");
-    
+
     if (profileBtn && userPanel) {
         userPanel.style.display = "none";
-        
+
         const toggleProfile = (e) => {
             e.stopPropagation();
             userPanel.style.display = userPanel.style.display === "none" ? "block" : "none";
         };
-        
+
         profileBtn.addEventListener("click", toggleProfile);
         if (quickProfileBtn) quickProfileBtn.addEventListener("click", toggleProfile);
     }
-    
+
     // Comment functionality
     setupCommentHandlers(ws);
-    
+
     // Category filtering
     setupCategoryFiltering();
-    
+
     // Global click handlers
     document.addEventListener("click", (e) => {
-        if (userPanel && !userPanel.contains(e.target) && 
-            !profileBtn.contains(e.target) && 
+        if (userPanel && !userPanel.contains(e.target) &&
+            !profileBtn?.contains(e.target) &&
             (!quickProfileBtn || !quickProfileBtn.contains(e.target))) {
             userPanel.style.display = "none";
         }
     });
-    
+
     // Setup WebSocket handlers
     handleWS(ws, JSON.parse(localStorage.getItem("user")));
 };
@@ -689,7 +734,7 @@ const setupCommentHandlers = (ws) => {
             e.preventDefault();
             const post = commentBtn.closest('.post');
             const commentsSection = post.querySelector('.comments-section');
-            
+
             if (commentsSection.classList.contains('open')) {
                 commentsSection.style.maxHeight = '0px';
                 commentsSection.style.opacity = '0';
@@ -701,13 +746,13 @@ const setupCommentHandlers = (ws) => {
             }
         }
     });
-    
+
     document.addEventListener('submit', async (e) => {
         if (e.target.classList.contains('addCommentForm')) {
             e.preventDefault();
             const comment = e.target.querySelector("input[name='comment']").value.trim();
             const postId = e.target.querySelector("input[name='postId']").value;
-            
+
             if (comment) {
                 await createComment(ws, comment, postId);
                 e.target.querySelector("input[name='comment']").value = "";
@@ -718,15 +763,15 @@ const setupCommentHandlers = (ws) => {
 
 const setupCategoryFiltering = () => {
     const categoryItems = document.querySelectorAll('.category-item');
-    
+
     categoryItems.forEach(item => {
         item.addEventListener('click', () => {
             const category = item.dataset.category;
-            
+
             // Update active state
             categoryItems.forEach(cat => cat.classList.remove('active'));
             item.classList.add('active');
-            
+
             // Filter posts
             filterPostsByCategory(category);
         });
@@ -735,7 +780,7 @@ const setupCategoryFiltering = () => {
 
 const filterPostsByCategory = (category) => {
     const posts = document.querySelectorAll('.post');
-    
+
     posts.forEach(post => {
         const postCategory = post.querySelector('.post-category');
         if (category === 'all' || !postCategory) {
@@ -756,11 +801,11 @@ const createComment = async (ws, comment, postId) => {
     try {
         const res = await fetch("/createComment", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({comment, identity: "comment", postId}),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ comment, identity: "comment", postId }),
         });
         const resBody = await res.json();
-        
+
         if (res.status === 201) {
             const user = JSON.parse(localStorage.getItem("user"));
             const newComment = {
@@ -772,7 +817,7 @@ const createComment = async (ws, comment, postId) => {
                 timestamp: resBody.time,
                 comments_count: resBody.comments_count,
             };
-            
+
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(newComment));
             }
@@ -787,14 +832,14 @@ const fetchUserMessages = async (userid) => {
         const res = await fetch(`/getusermessages?userId=${userid}`);
         const messages = await res.json();
         const messageThreadDiv = document.querySelector(".messageThread");
-        
+
         if (!messageThreadDiv) return;
-        
+
         if (!messages.data || !Array.isArray(messages.data)) {
             messageThreadDiv.innerHTML = '<div class="no-messages">No messages yet</div>';
             return;
         }
-        
+
         messageThreadDiv.innerHTML = "";
         messages.data.forEach((message) => {
             try {
@@ -824,25 +869,25 @@ const fetchUserMessages = async (userid) => {
 const loadMessages = (messages, userid) => {
     const chatContainer = document.getElementById("chat");
     const receiverIdInput = document.querySelector(".input-container .receiverId");
-    
+
     if (!chatContainer) return;
-    
+
     chatContainer.innerHTML = "";
-    
+
     messages.forEach(msg => {
         const messageEl = document.createElement("div");
         messageEl.classList.add("message", msg.sender === userid ? "sender" : "receiver");
         const displayName = msg.sender === userid ? "You" : msg.name || "Unknown User";
-        
+
         messageEl.innerHTML = `
             <div class="message-content">
                 <div class="message-meta">${displayName} • ${msg.created}</div>
                 <div class="message-text">${msg.message}</div>
             </div>
         `;
-        
+
         chatContainer.appendChild(messageEl);
-        
+
         if (receiverIdInput) {
             if (msg.sender !== userid) {
                 receiverIdInput.value = msg.sender;
@@ -851,30 +896,30 @@ const loadMessages = (messages, userid) => {
             }
         }
     });
-    
+
     chatContainer.scrollTop = chatContainer.scrollHeight;
 };
 
 const handleIncomingMessage = (messageData, user) => {
     const chatContainer = document.getElementById("chat");
     const currentReceiver = document.querySelector(".input-container .receiverId")?.value;
-    
+
     if (chatContainer && (messageData.sender === currentReceiver || messageData.receiver === user.id)) {
         const messageEl = document.createElement("div");
         messageEl.classList.add("message", messageData.sender === user.id ? "sender" : "receiver");
         const senderName = messageData.sender === user.id ? "You" : messageData.name;
-        
+
         messageEl.innerHTML = `
             <div class="message-content">
                 <div class="message-meta">${senderName} • ${messageData.created}</div>
                 <div class="message-text">${messageData.message}</div>
             </div>
         `;
-        
+
         chatContainer.appendChild(messageEl);
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
-    
+
     if (messageData.receiver === user.id) {
         const notificationElem = document.querySelector(".newMessage-notification");
         if (notificationElem) {
@@ -883,7 +928,7 @@ const handleIncomingMessage = (messageData, user) => {
             notificationElem.textContent = count.toString();
         }
     }
-    
+
     fetchUserMessages(user.id);
 };
 
@@ -891,7 +936,7 @@ const updatePostReactions = (reactionData) => {
     const postId = reactionData.data.id;
     const likesElement = document.querySelector(`[postid="${postId}"] #likes-count`);
     const dislikesElement = document.querySelector(`[postid="${postId}"] #dislike-count`);
-    
+
     if (likesElement && reactionData.data.Likes >= 0) {
         likesElement.textContent = reactionData.data.Likes;
     }
@@ -903,11 +948,11 @@ const updatePostReactions = (reactionData) => {
 const appendNewPost = (postData) => {
     const postsContainer = document.querySelector(".posts-section");
     if (!postsContainer) return;
-    
+
     const postElement = document.createElement("div");
     postElement.classList.add("post");
     postElement.setAttribute("postid", postData.id);
-    
+
     const isLoggedIn = !!localStorage.getItem("user");
     const actionsHTML = isLoggedIn ? `
         <div class="post-actions">
@@ -946,7 +991,7 @@ const appendNewPost = (postData) => {
             </div>
         </div>
     ` : '<div class="post-actions-disabled">Login to interact with posts</div>';
-    
+
     postElement.innerHTML = `
         <div class="post-header">
             <div class="avatar">
@@ -964,14 +1009,14 @@ const appendNewPost = (postData) => {
         </div>
         ${actionsHTML}
     `;
-    
+
     postsContainer.prepend(postElement);
 };
 
 const addNewComment = (commentData) => {
     const commentsContainer = document.querySelector(`[postid="${commentData.postId}"] .comments-section`);
     const commentBtn = document.querySelector(`[postid="${commentData.postId}"] .comment-btn span`);
-    
+
     if (commentsContainer) {
         const commentElement = document.createElement("div");
         commentElement.classList.add("comment");
@@ -987,10 +1032,10 @@ const addNewComment = (commentData) => {
                 <p class="comment-text">${commentData.context.comment}</p>
             </div>
         `;
-        
+
         commentsContainer.insertBefore(commentElement, commentsContainer.lastElementChild);
     }
-    
+
     if (commentBtn) {
         commentBtn.textContent = commentData.comments_count;
     }
@@ -1023,7 +1068,7 @@ const hideTypingIndicator = (msg) => {
 const addFooter = () => {
     const existingFooter = document.querySelector("footer");
     if (existingFooter) existingFooter.remove();
-    
+
     const footer = document.createElement("footer");
     footer.innerHTML = "&copy; 2025 RealForum - Connect, Share, Engage";
     document.body.appendChild(footer);
