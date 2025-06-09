@@ -238,10 +238,12 @@ const handleSignup = async (e) => {
     }
 };
 
-// SIMPLE CREATE POST MODAL - JUST THE WORKING PARTS
+// FIXED CREATE POST MODAL - WITH PROPER FORM RESET
 const setupCreatePostModal = (ws) => {
     console.log("Setting up create post modal...");
-
+    
+    let currentForm = null; // Keep track of the current form
+    
     // Wait for DOM to be ready
     const initModal = () => {
         // Get elements
@@ -253,7 +255,7 @@ const setupCreatePostModal = (ws) => {
         const closeBtn = document.getElementById("closePostModal");
         const cancelBtn = document.getElementById("cancelPost");
         const form = document.getElementById("createPostForm");
-
+        
         console.log("Found elements:", {
             showPostBtn: !!showPostBtn,
             quickCreateBtn: !!quickCreateBtn,
@@ -264,15 +266,49 @@ const setupCreatePostModal = (ws) => {
             cancelBtn: !!cancelBtn,
             form: !!form
         });
-
+        
+        // Function to reset form properly
+        const resetForm = () => {
+            const currentFormRef = document.getElementById("createPostForm");
+            if (currentFormRef) {
+                // Reset all input fields
+                const inputs = currentFormRef.querySelectorAll("input[type='text'], textarea");
+                inputs.forEach(input => {
+                    input.value = "";
+                });
+                
+                // Reset all checkboxes
+                const checkboxes = currentFormRef.querySelectorAll("input[type='checkbox']");
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                
+                // Reset submit button state
+                const submitBtn = currentFormRef.querySelector("button[type='submit']");
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publish Post';
+                }
+                
+                console.log("Form reset completed");
+            }
+        };
+        
         // Show modal function
-        const showModal = () => {
+        const showModal = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
             console.log("Opening modal");
             if (modal && overlay) {
                 modal.classList.add("active");
                 overlay.classList.add("active");
                 document.body.style.overflow = "hidden";
-
+                
+                // Reset form every time modal opens
+                resetForm();
+                
                 // Focus title input
                 setTimeout(() => {
                     const titleInput = modal.querySelector("input[name='title']");
@@ -280,97 +316,111 @@ const setupCreatePostModal = (ws) => {
                 }, 100);
             }
         };
-
+        
         // Hide modal function
-        const hideModal = () => {
+        const hideModal = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
             console.log("Closing modal");
             if (modal && overlay) {
                 modal.classList.remove("active");
                 overlay.classList.remove("active");
                 document.body.style.overflow = "";
-
-                // Reset form
-                if (form) form.reset();
+                
+                // Reset form when closing
+                resetForm();
             }
         };
-
+        
+        // Remove any existing event listeners by cloning elements
+        const cloneAndReplace = (element) => {
+            if (element && element.parentNode) {
+                const newElement = element.cloneNode(true);
+                element.parentNode.replaceChild(newElement, element);
+                return newElement;
+            }
+            return element;
+        };
+        
+        // Clone buttons to remove existing listeners
+        const newShowPostBtn = cloneAndReplace(showPostBtn);
+        const newQuickCreateBtn = cloneAndReplace(quickCreateBtn);
+        const newHeaderCreateBtn = cloneAndReplace(headerCreateBtn);
+        const newCloseBtn = cloneAndReplace(closeBtn);
+        const newCancelBtn = cloneAndReplace(cancelBtn);
+        const newOverlay = cloneAndReplace(overlay);
+        const newForm = cloneAndReplace(form);
+        
+        // Update current form reference
+        currentForm = newForm;
+        
         // Add click handlers to open modal
-        if (showPostBtn) {
-            showPostBtn.onclick = (e) => {
-                e.preventDefault();
-                console.log("Floating button clicked");
-                showModal();
-            };
+        if (newShowPostBtn) {
+            newShowPostBtn.addEventListener("click", showModal);
         }
-
-        if (quickCreateBtn) {
-            quickCreateBtn.onclick = (e) => {
-                e.preventDefault();
-                console.log("Quick create clicked");
-                showModal();
-            };
+        if (newQuickCreateBtn) {
+            newQuickCreateBtn.addEventListener("click", showModal);
         }
-
-        if (headerCreateBtn) {
-            headerCreateBtn.onclick = (e) => {
-                e.preventDefault();
-                console.log("Header button clicked");
-                showModal();
-            };
+        if (newHeaderCreateBtn) {
+            newHeaderCreateBtn.addEventListener("click", showModal);
         }
-
+        
         // Add click handlers to close modal
-        if (closeBtn) {
-            closeBtn.onclick = (e) => {
-                e.preventDefault();
-                hideModal();
-            };
+        if (newCloseBtn) {
+            newCloseBtn.addEventListener("click", hideModal);
         }
-
-        if (cancelBtn) {
-            cancelBtn.onclick = (e) => {
-                e.preventDefault();
-                hideModal();
-            };
+        if (newCancelBtn) {
+            newCancelBtn.addEventListener("click", hideModal);
         }
-
-        // Close when clicking overlay
-        if (overlay) {
-            overlay.onclick = (e) => {
-                if (e.target === overlay) {
-                    hideModal();
+        
+        // Close when clicking overlay (but not modal content)
+        if (newOverlay) {
+            newOverlay.addEventListener("click", (e) => {
+                // Only close if clicking directly on overlay, not its children
+                if (e.target === newOverlay) {
+                    hideModal(e);
                 }
-            };
+            });
         }
-
-        // Prevent modal from closing when clicking inside
+        
+        // Prevent modal from closing when clicking inside modal content
         if (modal) {
-            modal.onclick = (e) => {
+            modal.addEventListener("click", (e) => {
                 e.stopPropagation();
-            };
+            });
         }
-
+        
         // Handle form submission
-        if (form) {
-            form.onsubmit = async (e) => {
+        if (newForm) {
+            newForm.addEventListener("submit", async (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 console.log("Form submitted");
-
-                const formData = new FormData(form);
+                
+                const formData = new FormData(newForm);
                 const title = formData.get("title")?.trim();
                 const content = formData.get("content")?.trim();
-
+                
                 // Get checked categories
-                const checkboxes = form.querySelectorAll("input[type='checkbox']:checked");
+                const checkboxes = newForm.querySelectorAll("input[type='checkbox']:checked");
                 const categories = Array.from(checkboxes).map(cb => cb.value).join(" ");
-
+                
                 if (!title || !content) {
                     alert("Please fill in both title and content");
                     return;
                 }
-
+                
                 console.log("Submitting:", { title, content, categories });
-
+                
+                // Disable submit button to prevent double submission
+                const submitBtn = newForm.querySelector("button[type='submit']");
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = "Creating...";
+                }
+                
                 try {
                     const response = await fetch("/createPost", {
                         method: "POST",
@@ -382,12 +432,12 @@ const setupCreatePostModal = (ws) => {
                             identity: "post"
                         })
                     });
-
+                    
                     const data = await response.json();
-
+                    
                     if (response.ok) {
                         console.log("Post created successfully");
-
+                        
                         // Send via websocket if available
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             const user = JSON.parse(localStorage.getItem("user"));
@@ -401,30 +451,47 @@ const setupCreatePostModal = (ws) => {
                                 timestamp: new Date().toISOString()
                             }));
                         }
-
+                        
                         // Close modal and reset form
                         hideModal();
                         alert("Post created successfully!");
-
+                        
+                        // Optionally reload posts
+                        if (typeof loadPosts === 'function') {
+                            loadPosts(ws, false);
+                        }
                     } else {
                         console.error("Failed to create post:", data);
                         alert(data.message || "Failed to create post");
                     }
-
                 } catch (error) {
                     console.error("Error creating post:", error);
                     alert("An error occurred. Please try again.");
+                } finally {
+                    // Re-enable submit button
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publish Post';
+                    }
                 }
-            };
+            });
         }
-
+        
+        // Handle escape key to close modal
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && modal && modal.classList.contains("active")) {
+                hideModal();
+            }
+        });
+        
         // Make functions global for debugging
         window.showCreatePostModal = showModal;
         window.hideCreatePostModal = hideModal;
-
+        window.resetCreatePostForm = resetForm;
+        
         console.log("Modal setup complete");
     };
-
+    
     // Run initialization
     initModal();
 };
