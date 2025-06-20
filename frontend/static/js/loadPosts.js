@@ -7,24 +7,26 @@ export let posts;
 export const loadPosts = async (ws, isReadOnly = false) => {
     const token = localStorage.getItem("sessionToken");
     
+    // Authentication is now required for all posts access
+    if (!token) {
+        notify("Please login to view posts", "#E74C3C");
+        setTimeout(() => {
+            window.location.href = "/signin";
+        }, 2000);
+        return;
+    }
+    
     try {
-        let postsRes;
-        if (isReadOnly) {
-            // Public endpoint for non-authenticated users
-            postsRes = await fetch('/home');
-        } else {
-            // Authenticated endpoint
-            postsRes = await fetch(`/home?token=${token}`);
-        }
-        
+        // Only authenticated endpoint since public access is removed
+        const postsRes = await fetch(`/home?token=${token}`);
         const postData = await postsRes.json();
         posts = postData.posts;
         
-        if (!postsRes.ok && !isReadOnly) {
+        if (!postsRes.ok) {
             notify(postData.message, "#E74C3C");
             setTimeout(() => {
                 localStorage.clear();
-                window.location.href = "/";
+                window.location.href = "/welcome";
             }, 3000);
             return;
         }
@@ -37,7 +39,7 @@ export const loadPosts = async (ws, isReadOnly = false) => {
                 <div class="no-posts">
                     <i class="fas fa-comments"></i>
                     <h3>No posts yet</h3>
-                    <p>${isReadOnly ? 'Be the first to join and create a post!' : 'Be the first to create a post!'}</p>
+                    <p>Be the first to create a post!</p>
                 </div>
             `;
             return;
@@ -62,59 +64,48 @@ export const loadPosts = async (ws, isReadOnly = false) => {
                 `).join("")
                 : "";
             
-            // Different UI for authenticated vs public users
-            const postActions = isReadOnly 
-                ? `<div class="post-actions-disabled">
-                     <span class="login-prompt">
-                         <i class="fas fa-lock"></i>
-                         Login to like, comment, and interact
-                     </span>
-                   </div>`
-                : `<div class="post-actions">
-                     <form id="postLikesForm">
-                         <input type="hidden" name="postid" value="${post.id}">
-                         <input type="hidden" name="reaction" value="like">
-                         <button type="submit" class="like-btn">
-                             <i class="fas fa-thumbs-up"></i>
-                             <span id="likes-count">${post.likes}</span>
-                         </button>
-                     </form>
-                     <form id="postDislikeBtn">
-                         <input type="hidden" name="postid" value="${post.id}">
-                         <input type="hidden" name="reaction" value="dislike">
-                         <button type="submit" class="like-btn">
-                             <i class="fas fa-thumbs-down"></i>
-                             <span id="dislike-count">${post.dislikes}</span>
-                         </button>
-                     </form>
-                     <button class="comment-btn">
-                         <i class="fas fa-comment"></i>
-                         <span>${post.comments_num}</span>
-                     </button>
-                   </div>`;
+            // Full interactive UI for authenticated users only
+            const postActions = `
+                <div class="post-actions">
+                    <form id="postLikesForm">
+                        <input type="hidden" name="postid" value="${post.id}">
+                        <input type="hidden" name="reaction" value="like">
+                        <button type="submit" class="like-btn">
+                            <i class="fas fa-thumbs-up"></i>
+                            <span id="likes-count">${post.likes}</span>
+                        </button>
+                    </form>
+                    <form id="postDislikeBtn">
+                        <input type="hidden" name="postid" value="${post.id}">
+                        <input type="hidden" name="reaction" value="dislike">
+                        <button type="submit" class="like-btn">
+                            <i class="fas fa-thumbs-down"></i>
+                            <span id="dislike-count">${post.dislikes}</span>
+                        </button>
+                    </form>
+                    <button class="comment-btn">
+                        <i class="fas fa-comment"></i>
+                        <span>${post.comments_num}</span>
+                    </button>
+                </div>
+            `;
             
-            const commentsUI = isReadOnly
-                ? `<div class="comments-section-readonly">
-                     ${commentsSection}
-                     <div class="comment-login-prompt">
-                         <i class="fas fa-sign-in-alt"></i>
-                         <span>Login to join the conversation</span>
-                     </div>
-                   </div>`
-                : `<div class="comments-section">
-                     ${commentsSection}
-                     <div class="add-comment">
-                         <div class="avatar">
-                             <i class="fa-regular fa-user"></i>
-                         </div>
-                         <form class="addCommentForm">
-                             <input type="hidden" name="identity" value="comment">
-                             <input type="hidden" name="postId" value="${post.id}">
-                             <input type="text" placeholder="Write a comment..." name="comment" required>
-                             <button type="submit"><i class="fas fa-paper-plane"></i></button>
-                         </form>
-                     </div>
-                   </div>`;
+            const commentsUI = `
+                <div class="comments-section">
+                    ${commentsSection}
+                    <div class="add-comment">
+                        <div class="avatar">
+                            <i class="fa-regular fa-user"></i>
+                        </div>
+                        <form class="addCommentForm">
+                            <input type="hidden" name="identity" value="comment">
+                            <input type="hidden" name="postId" value="${post.id}">
+                            <input type="text" placeholder="Write a comment..." name="comment" required>
+                            <button type="submit"><i class="fas fa-paper-plane"></i></button>
+                        </form>
+                    </div>
+                </div>
+            `;
             
             pageData += `
                 <div class="post" postid="${post.id}">
@@ -142,12 +133,8 @@ export const loadPosts = async (ws, isReadOnly = false) => {
         
         postsContainer.innerHTML = pageData;
         
-        // Only add interactive functionality for authenticated users
-        if (!isReadOnly) {
-            setupPostInteractions(ws);
-        } else {
-            setupPublicPostBehavior();
-        }
+        // Add interactive functionality for authenticated users
+        setupPostInteractions(ws);
         
     } catch (error) {
         console.error("Error loading posts:", error);
@@ -206,21 +193,6 @@ const setupPostInteractions = (ws) => {
             } catch (error) {
                 console.error(`Error on ${reaction}:`, error);
             }
-        }
-    });
-};
-
-const setupPublicPostBehavior = () => {
-    // Add click handlers for public users to prompt login
-    const postsSection = document.querySelector(".posts-section");
-    if (!postsSection) return;
-    
-    postsSection.addEventListener("click", (e) => {
-        if (e.target.closest(".post-actions-disabled, .comment-login-prompt")) {
-            notify("Please login to interact with posts", "#4A90E2");
-            setTimeout(() => {
-                window.location.href = "/signin";
-            }, 2000);
         }
     });
 };
