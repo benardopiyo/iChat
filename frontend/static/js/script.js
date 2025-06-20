@@ -5,7 +5,6 @@ import { headerContext } from "./pageContext/header.js"
 import { signinContext } from "./pageContext/login.js"
 import { signupContext } from "./pageContext/signup.js"
 import { homePageContext } from "./pageContext/home.js"
-import { publicHomePage } from "./pageContext/publicHome.js"
 import { loadPosts } from "./loadPosts.js"
 import { notify } from "./pageContext/notification.js"
 
@@ -16,6 +15,55 @@ const isLoggedIn = () => {
     const user = JSON.parse(localStorage.getItem("user"));
     const token = localStorage.getItem("sessionToken");
     return user && token;
+};
+
+// Universal logout function that can be called from anywhere
+const performLogout = async () => {
+    try {
+        // Show loading state
+        const logoutBtns = document.querySelectorAll('.logout-nav-link, .nav-link-logout .nav-link-out');
+        logoutBtns.forEach(btn => {
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.6';
+        });
+
+        // Close WebSocket connection if exists
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
+
+        // Call logout endpoint
+        const response = await fetch("/logout", {
+            method: "POST",
+            credentials: "include"
+        });
+
+        // Clear local storage regardless of response
+        localStorage.clear();
+        
+        if (response.ok) {
+            notify("Logged out successfully", "#27AE60");
+        } else {
+            notify("Logout completed", "#27AE60");
+        }
+
+        // Redirect to welcome page after a short delay
+        setTimeout(() => {
+            history.pushState({}, "", "/welcome");
+            handleRoutes();
+        }, 1000);
+
+    } catch (error) {
+        console.error("Logout error:", error);
+        // Clear local storage even on error
+        localStorage.clear();
+        notify("Logged out", "#27AE60");
+        
+        setTimeout(() => {
+            history.pushState({}, "", "/welcome");
+            handleRoutes();
+        }, 1000);
+    }
 };
 
 const handleRoutes = () => {
@@ -33,35 +81,29 @@ const handleRoutes = () => {
             loadSignUp(false);
             break;
         case "/":
+            // Always check authentication for home page
             if (isLoggedIn()) {
                 loadAuthenticatedHomePage();
             } else {
-                loadPublicHomePage();
+                // Redirect non-authenticated users to welcome page
+                history.pushState({}, "", "/welcome");
+                loadWelcomePage(false);
             }
             break;
         default:
-            history.pushState({}, "", "/");
-            handleRoutes();
+            // For any unknown routes, redirect to appropriate page based on auth status
+            if (isLoggedIn()) {
+                history.pushState({}, "", "/");
+                handleRoutes();
+            } else {
+                history.pushState({}, "", "/welcome");
+                handleRoutes();
+            }
             break;
     }
 };
 
-// PUBLIC HOME PAGE
-const loadPublicHomePage = () => {
-    container.className = "container public-layout";
-    header.innerHTML = headerContext;
-    container.innerHTML = publicHomePage;
-
-    loadPosts(null, true);
-
-    const loginBtn = document.getElementById("publicLoginBtn");
-    const signupBtn = document.getElementById("publicSignupBtn");
-
-    if (loginBtn) loginBtn.addEventListener("click", () => loadSignIn());
-    if (signupBtn) signupBtn.addEventListener("click", () => loadSignUp());
-};
-
-// AUTHENTICATED HOME PAGE
+// AUTHENTICATED HOME PAGE (Only accessible after login)
 const loadAuthenticatedHomePage = () => {
     const user = JSON.parse(localStorage.getItem("user"));
 
@@ -91,9 +133,26 @@ const loadAuthenticatedHomePage = () => {
 };
 
 const setupAuthenticatedUI = (user) => {
-    // Setup header
+    // Setup header authenticated elements
     document.querySelector("#user-inbox").innerHTML = `<i class="fas fa-envelope"><span class="newMessage-notification">0</span></i>`;
     document.querySelector(".user-profile-nav-link").innerHTML = `<i class="fa-regular fa-user"></i>`;
+    
+    // Show logout button in header
+    const headerLogoutBtn = document.getElementById("header-logout-btn");
+    if (headerLogoutBtn) {
+        headerLogoutBtn.style.display = "flex";
+        // Add logout event listener
+        headerLogoutBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Optional: Show confirmation dialog
+            const confirmLogout = confirm("Are you sure you want to logout?");
+            if (confirmLogout) {
+                performLogout();
+            }
+        });
+    }
 
     // Setup search
     const searchContainer = document.querySelector(".search-wrapper");
@@ -124,6 +183,10 @@ const loadWelcomePage = (pushState = true) => {
     container.className = "container welcome-layout";
     header.innerHTML = headerContext;
     container.innerHTML = welcomePage;
+    
+    // Hide authenticated elements for non-authenticated users
+    hideAuthenticatedHeaderElements();
+    
     attachWelcomePageListeners();
 };
 
@@ -133,6 +196,10 @@ const loadSignIn = (pushState = true) => {
     container.className = "container auth-layout";
     header.innerHTML = headerContext;
     container.innerHTML = signinContext;
+    
+    // Hide authenticated elements
+    hideAuthenticatedHeaderElements();
+    
     attachAuthListeners();
 };
 
@@ -142,7 +209,22 @@ const loadSignUp = (pushState = true) => {
     container.className = "container auth-layout";
     header.innerHTML = headerContext;
     container.innerHTML = signupContext;
+    
+    // Hide authenticated elements
+    hideAuthenticatedHeaderElements();
+    
     attachAuthListeners();
+};
+
+// Hide authenticated elements for non-authenticated users
+const hideAuthenticatedHeaderElements = () => {
+    const headerLogoutBtn = document.getElementById("header-logout-btn");
+    const userInbox = document.getElementById("user-inbox");
+    const userProfileLink = document.querySelector(".user-profile-nav-link");
+
+    if (headerLogoutBtn) headerLogoutBtn.style.display = "none";
+    if (userInbox) userInbox.style.display = "none";
+    if (userProfileLink) userProfileLink.style.display = "none";
 };
 
 // EVENT LISTENERS
@@ -740,20 +822,13 @@ const handleWS = (ws, userData) => {
 
 // HOME PAGE EVENT LISTENERS
 const loadHomePageListeners = (ws) => {
-    // Logout functionality
+    // Logout functionality for user panel (keeping existing functionality)
     const logoutBtn = document.querySelector(".nav-link-logout");
     if (logoutBtn) {
         logoutBtn.addEventListener("click", async () => {
-            try {
-                await fetch("/logout");
-                localStorage.clear();
-                history.pushState({}, "", "/");
-                loadPublicHomePage();
-                notify("Logged out successfully", "#27AE60");
-            } catch (error) {
-                console.error("Logout error:", error);
-                localStorage.clear();
-                loadPublicHomePage();
+            const confirmLogout = confirm("Are you sure you want to logout?");
+            if (confirmLogout) {
+                await performLogout();
             }
         });
     }
@@ -1020,8 +1095,8 @@ const appendNewPost = (postData) => {
     postElement.classList.add("post");
     postElement.setAttribute("postid", postData.id);
 
-    const isLoggedIn = !!localStorage.getItem("user");
-    const actionsHTML = isLoggedIn ? `
+    // Only authenticated users can access this function, so always show full interactions
+    const actionsHTML = `
         <div class="post-actions">
             <form id="postLikesForm">
                 <input type="hidden" name="postid" value="${postData.id}">
@@ -1057,7 +1132,7 @@ const appendNewPost = (postData) => {
                 </form>
             </div>
         </div>
-    ` : '<div class="post-actions-disabled">Login to interact with posts</div>';
+    `;
 
     postElement.innerHTML = `
         <div class="post-header">
@@ -1144,3 +1219,6 @@ const addFooter = () => {
 // Initialize the application
 document.addEventListener("DOMContentLoaded", handleRoutes);
 window.addEventListener("popstate", handleRoutes);
+
+// Make performLogout globally available for debugging
+window.performLogout = performLogout;
