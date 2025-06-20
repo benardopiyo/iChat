@@ -35,9 +35,8 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// OptionalAuthMiddleware allows both authenticated and non-authenticated access
-// but provides different responses based on authentication status
-func OptionalAuthMiddleware(authenticatedHandler, publicHandler http.HandlerFunc) http.HandlerFunc {
+// StrictAuthMiddleware - Even stricter authentication that doesn't fall back to public
+func StrictAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get token from query parameter or cookie
 		token := r.URL.Query().Get("token")
@@ -49,14 +48,28 @@ func OptionalAuthMiddleware(authenticatedHandler, publicHandler http.HandlerFunc
 			}
 		}
 
-		// Check if user is authenticated
-		if token != "" && controllers.ValidSession(token) {
-			// User is authenticated, use authenticated handler
-			authenticatedHandler.ServeHTTP(w, r)
-		} else {
-			// User is not authenticated, use public handler
-			publicHandler.ServeHTTP(w, r)
+		// Strict check - no token = no access
+		if token == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Premium access required. Please login to continue.",
+			})
+			return
 		}
+
+		// Validate session
+		if !controllers.ValidSession(token) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Session expired. Please login again.",
+			})
+			return
+		}
+
+		// User is authenticated, proceed to next handler
+		next.ServeHTTP(w, r)
 	}
 }
 
