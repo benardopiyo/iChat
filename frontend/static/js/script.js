@@ -739,6 +739,98 @@ const setupChatInterface = (ws) => {
     setupMainChatInput(ws);
 };
 
+// Setup enhanced chat interface handlers
+const setupEnhancedChatHandlers = (ws) => {
+    const chatInterface = document.getElementById("chatInterface");
+    if (!chatInterface) return;
+
+    // Minimize chat button
+    const minimizeBtn = document.getElementById("minimizeChat");
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener("click", () => {
+            chatInterface.style.display = "none";
+        });
+    }
+
+    // Close chat button
+    const closeBtn = document.getElementById("closeChat");
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            chatInterface.style.display = "none";
+            // Clear chat messages and reset receiver
+            const chatMessages = document.getElementById("chatMessages");
+            const receiverIdInput = document.querySelector("#chatInterface .receiverId");
+            if (chatMessages) chatMessages.innerHTML = "";
+            if (receiverIdInput) receiverIdInput.value = "";
+        });
+    }
+
+    // Send message button and input
+    const sendBtn = document.getElementById("sendMessage");
+    const chatInput = document.getElementById("chatInput");
+
+    if (sendBtn && chatInput) {
+        const sendMessage = async () => {
+            const receiverId = document.querySelector("#chatInterface .receiverId").value;
+            const message = chatInput.value.trim();
+
+            if (!message || !receiverId) return;
+
+            const user = JSON.parse(localStorage.getItem("user"));
+
+            try {
+                const response = await fetch("/privateMessage", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: message,
+                        receiver: receiverId,
+                        sender: user.id,
+                        name: user.username,
+                        seen: false,
+                        created: new Date().toLocaleString('en-US', { hour12: false })
+                    })
+                });
+
+                const resBody = await response.json();
+                if (response.status === 200) {
+                    ws.send(JSON.stringify({ "type": "message", "data": resBody.data }));
+                    chatInput.value = "";
+
+                    // Add message to current chat
+                    const chatMessages = document.getElementById("chatMessages");
+                    if (chatMessages) {
+                        const messageEl = document.createElement("div");
+                        messageEl.classList.add("message", "sender");
+                        messageEl.innerHTML = `
+                            <div class="message-content">
+                                <div class="message-meta">You • ${new Date().toLocaleString('en-US', { hour12: false })}</div>
+                                <div class="message-text">${message}</div>
+                            </div>
+                        `;
+                        chatMessages.appendChild(messageEl);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+
+                    fetchUserMessages(user.id);
+                    notify("Message sent!", "#27AE60");
+                }
+            } catch (error) {
+                console.error("Failed to send message:", error);
+                notify("Failed to send message", "#E74C3C");
+            }
+        };
+
+        sendBtn.addEventListener("click", sendMessage);
+        chatInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+};
+
 const setupMainChatInput = (ws) => {
     const sendBtn = document.querySelector(".input-container #sendBtn");
     const messageInput = document.querySelector(".input-container #messageInput");
@@ -849,6 +941,9 @@ const loadHomePageListeners = (ws) => {
         profileBtn.addEventListener("click", toggleProfile);
         if (quickProfileBtn) quickProfileBtn.addEventListener("click", toggleProfile);
     }
+
+    // Enhanced chat interface handlers
+    setupEnhancedChatHandlers(ws);
 
     // Comment functionality
     setupCommentHandlers(ws);
@@ -990,13 +1085,27 @@ const fetchUserMessages = async (userid) => {
                     const latestMessage = parsed[parsed.length - 1];
                     const thread = document.createElement("div");
                     thread.classList.add("thread");
-                    const senderName = latestMessage.sender === userid ? "You" : latestMessage.name || "Unknown User";
+
+                    // Determine the other user in the conversation
+                    const otherUser = latestMessage.sender === userid ?
+                        { id: latestMessage.receiver, name: getOtherUserName(parsed, userid) } :
+                        { id: latestMessage.sender, name: latestMessage.name || "Unknown User" };
+
+                    const displayName = latestMessage.sender === userid ?
+                        `You → ${otherUser.name}` :
+                        otherUser.name;
+
                     thread.innerHTML = `
-                        <div class="thread-user">${senderName}</div>
+                        <div class="thread-user">${displayName}</div>
                         <div class="thread-message">${latestMessage.message}</div>
                         <div class="thread-time">${latestMessage.created}</div>
                     `;
-                    thread.addEventListener("click", () => loadMessages(parsed, userid));
+
+                    // Store other user info for chat opening
+                    thread.dataset.otherUserId = otherUser.id;
+                    thread.dataset.otherUserName = otherUser.name;
+
+                    thread.addEventListener("click", () => openChatFromThread(parsed, userid, otherUser));
                     messageThreadDiv.appendChild(thread);
                 }
             } catch (error) {
@@ -1008,13 +1117,114 @@ const fetchUserMessages = async (userid) => {
     }
 };
 
-const loadMessages = (messages, userid) => {
+// Helper function to get the other user's name from message history
+const getOtherUserName = (messages, currentUserId) => {
+    for (const msg of messages) {
+        if (msg.sender !== currentUserId && msg.name) {
+            return msg.name;
+        }
+    }
+    return "Unknown User";
+};
+
+// New function to open chat from thread notification
+const openChatFromThread = (messages, userid, otherUser) => {
+    const messageThread = document.querySelector(".messageThread");
+    const chatWrapper = document.querySelector(".chat-wrapper");
+    const chatInterface = document.getElementById("chatInterface");
+
+    // Hide message thread
+    if (messageThread) {
+        messageThread.style.display = "none";
+    }
+
+    // Show appropriate chat interface
+    if (chatInterface) {
+        // Use the enhanced chat interface from home.js
+        showEnhancedChatInterface(messages, userid, otherUser);
+    } else if (chatWrapper) {
+        // Fallback to header chat wrapper
+        showHeaderChatInterface(messages, userid, otherUser);
+    }
+};
+
+// Enhanced chat interface (from home.js template)
+const showEnhancedChatInterface = (messages, userid, otherUser) => {
+    const chatInterface = document.getElementById("chatInterface");
+    const chatMessages = document.getElementById("chatMessages");
+    const chatInput = document.getElementById("chatInput");
+    const receiverIdInput = document.querySelector("#chatInterface .receiverId");
+
+    if (!chatInterface || !chatMessages) return;
+
+    // Update chat header with other user info
+    const chatAvatar = chatInterface.querySelector(".chat-avatar");
+    const chatUsername = chatInterface.querySelector(".chat-username");
+
+    if (chatAvatar) {
+        chatAvatar.src = `https://ui-avatars.com/api/?name=${otherUser.name}&background=4A90E2&color=fff&size=40`;
+        chatAvatar.alt = otherUser.name;
+    }
+
+    if (chatUsername) {
+        chatUsername.textContent = otherUser.name;
+    }
+
+    // Set receiver ID
+    if (receiverIdInput) {
+        receiverIdInput.value = otherUser.id;
+    }
+
+    // Load messages
+    loadMessagesIntoContainer(messages, userid, chatMessages);
+
+    // Clear notification count for this conversation
+    clearNotificationCount();
+
+    // Show chat interface
+    chatInterface.style.display = "flex";
+
+    // Focus input
+    if (chatInput) {
+        chatInput.focus();
+    }
+};
+
+// Header chat interface (fallback)
+const showHeaderChatInterface = (messages, userid, otherUser) => {
+    const chatWrapper = document.querySelector(".chat-wrapper");
     const chatContainer = document.getElementById("chat");
     const receiverIdInput = document.querySelector(".input-container .receiverId");
 
-    if (!chatContainer) return;
+    if (!chatWrapper || !chatContainer) return;
 
-    chatContainer.innerHTML = "";
+    // Set receiver ID
+    if (receiverIdInput) {
+        receiverIdInput.value = otherUser.id;
+    }
+
+    // Load messages
+    loadMessagesIntoContainer(messages, userid, chatContainer);
+
+    // Clear notification count for this conversation
+    clearNotificationCount();
+
+    // Show chat wrapper
+    chatWrapper.style.display = "flex";
+};
+
+// Updated loadMessages function for backward compatibility
+const loadMessages = (messages, userid) => {
+    const chatContainer = document.getElementById("chat");
+    if (!chatContainer) return;
+    loadMessagesIntoContainer(messages, userid, chatContainer);
+};
+
+// Unified function to load messages into any container
+const loadMessagesIntoContainer = (messages, userid, container) => {
+    if (!container) return;
+
+    container.innerHTML = "";
 
     messages.forEach(msg => {
         const messageEl = document.createElement("div");
@@ -1028,18 +1238,18 @@ const loadMessages = (messages, userid) => {
             </div>
         `;
 
-        chatContainer.appendChild(messageEl);
-
-        if (receiverIdInput) {
-            if (msg.sender !== userid) {
-                receiverIdInput.value = msg.sender;
-            } else {
-                receiverIdInput.value = msg.receiver;
-            }
-        }
+        container.appendChild(messageEl);
     });
 
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    container.scrollTop = container.scrollHeight;
+};
+
+// Clear notification count when opening a chat
+const clearNotificationCount = () => {
+    const notificationElem = document.querySelector(".newMessage-notification");
+    if (notificationElem) {
+        notificationElem.textContent = "0";
+    }
 };
 
 const handleIncomingMessage = (messageData, user) => {
