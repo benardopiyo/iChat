@@ -97,6 +97,8 @@ func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 
 func GetUserMessages(w http.ResponseWriter, r *http.Request) {
 	userId := r.URL.Query().Get("userId")
+	limit := r.URL.Query().Get("limit")
+	offset := r.URL.Query().Get("offset")
 
 	if userId == "" {
 		return
@@ -112,7 +114,7 @@ func GetUserMessages(w http.ResponseWriter, r *http.Request) {
 	var userMessages []string
 
 	for _, threadId := range threadIds {
-		message, err := controllers.GetMessages(threadId)
+		message, err := controllers.GetMessages(threadId, limit, offset)
 		if err != nil {
 			log.Println(err)
 			return
