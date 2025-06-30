@@ -588,6 +588,9 @@ const updateUserList = (msg, userData) => {
     const currentUser = JSON.parse(localStorage.getItem("user"));
     const onlineUsers = msg.data.filter(u => u.id !== userData.id);
 
+    // Sort users alphabetically by name (for users without chat messages)
+    onlineUsers.sort((a, b) => a.name.localeCompare(b.name));
+
     // Update online count
     if (onlineCount) {
         onlineCount.textContent = onlineUsers.length;
@@ -728,9 +731,26 @@ const setupChatInterface = (ws) => {
             e.stopPropagation();
             if (messageThread) {
                 const isVisible = messageThread.style.display === "flex";
-                messageThread.style.display = isVisible ? "none" : "flex";
-                if (!isVisible && chatWrapper) {
-                    chatWrapper.style.display = "none";
+
+                if (!isVisible) {
+                    // Show all chats instantly when notification button is clicked
+                    messageThread.style.display = "flex";
+
+                    // Immediately fetch and display all user messages without loading
+                    const user = JSON.parse(localStorage.getItem("user"));
+                    if (user) {
+                        fetchUserMessages(user.id);
+                    }
+
+                    // Hide other chat interfaces
+                    if (chatWrapper) {
+                        chatWrapper.style.display = "none";
+                    }
+
+                    console.log("📬 Showing all chat threads instantly");
+                } else {
+                    // Hide message thread
+                    messageThread.style.display = "none";
                 }
             }
         });
@@ -1077,43 +1097,68 @@ const fetchUserMessages = async (userid) => {
             return;
         }
 
+        // Clear and immediately show all chats without loading indicators
         messageThreadDiv.innerHTML = "";
+
+        // Parse and sort messages by latest message timestamp (Discord-style)
+        const parsedThreads = [];
         messages.data.forEach((message) => {
             try {
                 const parsed = JSON.parse(message);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     const latestMessage = parsed[parsed.length - 1];
-                    const thread = document.createElement("div");
-                    thread.classList.add("thread");
-
-                    // Determine the other user in the conversation
-                    const otherUser = latestMessage.sender === userid ?
-                        { id: latestMessage.receiver, name: getOtherUserName(parsed, userid) } :
-                        { id: latestMessage.sender, name: latestMessage.name || "Unknown User" };
-
-                    const displayName = latestMessage.sender === userid ?
-                        `You → ${otherUser.name}` :
-                        otherUser.name;
-
-                    thread.innerHTML = `
-                        <div class="thread-user">${displayName}</div>
-                        <div class="thread-message">${latestMessage.message}</div>
-                        <div class="thread-time">${latestMessage.created}</div>
-                    `;
-
-                    // Store other user info for chat opening
-                    thread.dataset.otherUserId = otherUser.id;
-                    thread.dataset.otherUserName = otherUser.name;
-
-                    thread.addEventListener("click", () => openChatFromThread(parsed, userid, otherUser));
-                    messageThreadDiv.appendChild(thread);
+                    parsedThreads.push({
+                        messages: parsed,
+                        latestMessage: latestMessage,
+                        timestamp: new Date(latestMessage.created).getTime()
+                    });
                 }
             } catch (error) {
                 console.error("Error parsing message:", error);
             }
         });
+
+        // Sort threads by latest message timestamp (most recent first - Discord style)
+        parsedThreads.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Create and display all thread elements immediately
+        parsedThreads.forEach(({ messages: parsed, latestMessage }) => {
+            const thread = document.createElement("div");
+            thread.classList.add("thread");
+
+            // Determine the other user in the conversation
+            const otherUser = latestMessage.sender === userid ?
+                { id: latestMessage.receiver, name: getOtherUserName(parsed, userid) } :
+                { id: latestMessage.sender, name: latestMessage.name || "Unknown User" };
+
+            const displayName = latestMessage.sender === userid ?
+                `You → ${otherUser.name}` :
+                otherUser.name;
+
+            // Format timestamp for display
+            const messageTime = formatMessageTime(latestMessage.created);
+
+            thread.innerHTML = `
+                <div class="thread-user">${displayName}</div>
+                <div class="thread-message">${latestMessage.message}</div>
+                <div class="thread-time">${messageTime}</div>
+            `;
+
+            // Store other user info for chat opening
+            thread.dataset.otherUserId = otherUser.id;
+            thread.dataset.otherUserName = otherUser.name;
+
+            thread.addEventListener("click", () => openChatFromThread(parsed, userid, otherUser));
+            messageThreadDiv.appendChild(thread);
+        });
+
+        console.log(`✅ Displayed ${parsedThreads.length} chat threads instantly`);
     } catch (error) {
         console.error("Fetch error:", error);
+        const messageThreadDiv = document.querySelector(".messageThread");
+        if (messageThreadDiv) {
+            messageThreadDiv.innerHTML = '<div class="no-messages">Failed to load messages</div>';
+        }
     }
 };
 
@@ -1127,7 +1172,34 @@ const getOtherUserName = (messages, currentUserId) => {
     return "Unknown User";
 };
 
-// New function to open chat from thread notification
+// Helper function to format message time for display (Discord-style)
+const formatMessageTime = (timestamp) => {
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+    const diffInMs = now.getTime() - messageDate.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) {
+        return "Just now";
+    } else if (diffInMinutes < 60) {
+        return `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+        return `${diffInHours}h ago`;
+    } else if (diffInDays < 7) {
+        return `${diffInDays}d ago`;
+    } else {
+        // For older messages, show the actual date
+        return messageDate.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: messageDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    }
+};
+
+// New function to open chat from thread notification - shows all messages instantly
 const openChatFromThread = (messages, userid, otherUser) => {
     const messageThread = document.querySelector(".messageThread");
     const chatWrapper = document.querySelector(".chat-wrapper");
@@ -1138,18 +1210,18 @@ const openChatFromThread = (messages, userid, otherUser) => {
         messageThread.style.display = "none";
     }
 
-    // Show appropriate chat interface
+    // Show appropriate chat interface with all messages instantly
     if (chatInterface) {
-        // Use the enhanced chat interface from home.js
-        showEnhancedChatInterface(messages, userid, otherUser);
+        // Use the enhanced chat interface - show all messages immediately
+        showEnhancedChatInterfaceInstant(messages, userid, otherUser);
     } else if (chatWrapper) {
-        // Fallback to header chat wrapper
-        showHeaderChatInterface(messages, userid, otherUser);
+        // Fallback to header chat wrapper - show all messages immediately
+        showHeaderChatInterfaceInstant(messages, userid, otherUser);
     }
 };
 
-// Enhanced chat interface (from home.js template)
-const showEnhancedChatInterface = (messages, userid, otherUser) => {
+// Enhanced chat interface - instant version (shows all messages immediately)
+const showEnhancedChatInterfaceInstant = (messages, userid, otherUser) => {
     const chatInterface = document.getElementById("chatInterface");
     const chatMessages = document.getElementById("chatMessages");
     const chatInput = document.getElementById("chatInput");
@@ -1175,7 +1247,7 @@ const showEnhancedChatInterface = (messages, userid, otherUser) => {
         receiverIdInput.value = otherUser.id;
     }
 
-    // Load messages
+    // Show ALL messages instantly without pagination
     loadMessagesIntoContainer(messages, userid, chatMessages);
 
     // Clear notification count for this conversation
@@ -1188,10 +1260,12 @@ const showEnhancedChatInterface = (messages, userid, otherUser) => {
     if (chatInput) {
         chatInput.focus();
     }
+
+    console.log(`💬 Opened chat with ${otherUser.name} - showing all ${messages.length} messages instantly`);
 };
 
-// Header chat interface (fallback)
-const showHeaderChatInterface = (messages, userid, otherUser) => {
+// Header chat interface - instant version (shows all messages immediately)
+const showHeaderChatInterfaceInstant = (messages, userid, otherUser) => {
     const chatWrapper = document.querySelector(".chat-wrapper");
     const chatContainer = document.getElementById("chat");
     const receiverIdInput = document.querySelector(".input-container .receiverId");
@@ -1203,7 +1277,7 @@ const showHeaderChatInterface = (messages, userid, otherUser) => {
         receiverIdInput.value = otherUser.id;
     }
 
-    // Load messages
+    // Show ALL messages instantly without pagination
     loadMessagesIntoContainer(messages, userid, chatContainer);
 
     // Clear notification count for this conversation
@@ -1211,6 +1285,8 @@ const showHeaderChatInterface = (messages, userid, otherUser) => {
 
     // Show chat wrapper
     chatWrapper.style.display = "flex";
+
+    console.log(`💬 Opened header chat with ${otherUser.name} - showing all ${messages.length} messages instantly`);
 };
 
 // Updated loadMessages function for backward compatibility
@@ -1220,13 +1296,13 @@ const loadMessages = (messages, userid) => {
     loadMessagesIntoContainer(messages, userid, chatContainer);
 };
 
-// Unified function to load messages into any container
+// Unified function to load messages into any container - instant display with animations
 const loadMessagesIntoContainer = (messages, userid, container) => {
     if (!container) return;
 
     container.innerHTML = "";
 
-    messages.forEach(msg => {
+    messages.forEach((msg, index) => {
         const messageEl = document.createElement("div");
         messageEl.classList.add("message", msg.sender === userid ? "sender" : "receiver");
         const displayName = msg.sender === userid ? "You" : msg.name || "Unknown User";
@@ -1238,10 +1314,18 @@ const loadMessagesIntoContainer = (messages, userid, container) => {
             </div>
         `;
 
+        // Add staggered animation delay for smooth appearance
+        messageEl.style.animationDelay = `${index * 20}ms`;
+
         container.appendChild(messageEl);
     });
 
-    container.scrollTop = container.scrollHeight;
+    // Scroll to bottom after all messages are added
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 100);
+
+    console.log(`💬 Displayed ${messages.length} messages instantly with animations`);
 };
 
 // Clear notification count when opening a chat
@@ -1252,36 +1336,163 @@ const clearNotificationCount = () => {
     }
 };
 
+// Queue for handling multiple incoming messages
+const incomingMessageQueue = {
+    messages: [],
+    timer: null,
+    batchDelay: 500 // 500ms delay to batch incoming messages
+};
+
 const handleIncomingMessage = (messageData, user) => {
-    const chatContainer = document.getElementById("chat");
-    const currentReceiver = document.querySelector(".input-container .receiverId")?.value;
+    // Add message to queue
+    incomingMessageQueue.messages.push({ messageData, user });
 
-    if (chatContainer && (messageData.sender === currentReceiver || messageData.receiver === user.id)) {
-        const messageEl = document.createElement("div");
-        messageEl.classList.add("message", messageData.sender === user.id ? "sender" : "receiver");
-        const senderName = messageData.sender === user.id ? "You" : messageData.name;
-
-        messageEl.innerHTML = `
-            <div class="message-content">
-                <div class="message-meta">${senderName} • ${messageData.created}</div>
-                <div class="message-text">${messageData.message}</div>
-            </div>
-        `;
-
-        chatContainer.appendChild(messageEl);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+    // Clear existing timer
+    if (incomingMessageQueue.timer) {
+        clearTimeout(incomingMessageQueue.timer);
     }
 
-    if (messageData.receiver === user.id) {
+    // Set new timer to process batch
+    incomingMessageQueue.timer = setTimeout(() => {
+        processBatchedIncomingMessages();
+    }, incomingMessageQueue.batchDelay);
+};
+
+const processBatchedIncomingMessages = () => {
+    if (incomingMessageQueue.messages.length === 0) return;
+
+    const chatContainer = document.getElementById("chat");
+    const enhancedChatContainer = document.getElementById("chatMessages");
+    const currentReceiver = document.querySelector(".input-container .receiverId")?.value;
+    const enhancedReceiver = document.querySelector("#chatInterface .receiverId")?.value;
+
+    // Group messages by conversation
+    const conversationMessages = {};
+    let notificationCount = 0;
+
+    incomingMessageQueue.messages.forEach(({ messageData, user }) => {
+        const conversationKey = messageData.sender === user.id ?
+            `${user.id}-${messageData.receiver}` :
+            `${messageData.sender}-${user.id}`;
+
+        if (!conversationMessages[conversationKey]) {
+            conversationMessages[conversationKey] = [];
+        }
+        conversationMessages[conversationKey].push({ messageData, user });
+
+        // Count notifications
+        if (messageData.receiver === user.id) {
+            notificationCount++;
+        }
+    });
+
+    // Process each conversation's messages
+    Object.values(conversationMessages).forEach(async (messages) => {
+        const firstMessage = messages[0];
+        const { messageData: firstMsgData, user } = firstMessage;
+
+        // Check if this conversation is currently open
+        const isCurrentChat = (chatContainer && (firstMsgData.sender === currentReceiver || firstMsgData.receiver === user.id)) ||
+                             (enhancedChatContainer && (firstMsgData.sender === enhancedReceiver || firstMsgData.receiver === user.id));
+
+        if (isCurrentChat) {
+            const container = enhancedChatContainer || chatContainer;
+
+            if (messages.length > 5) {
+                // Use batch loading for multiple messages
+                console.log(`📦 Batch loading ${messages.length} incoming messages`);
+                const messageElements = messages.map(({ messageData, user }) => {
+                    const messageEl = document.createElement("div");
+                    messageEl.classList.add("message", messageData.sender === user.id ? "sender" : "receiver");
+                    const senderName = messageData.sender === user.id ? "You" : messageData.name;
+
+                    messageEl.innerHTML = `
+                        <div class="message-content">
+                            <div class="message-meta">${senderName} • ${messageData.created}</div>
+                            <div class="message-text">${messageData.message}</div>
+                        </div>
+                    `;
+                    return messageEl;
+                });
+
+                // Add messages in batches with animation
+                await addMessagesInBatches(messageElements, container);
+            } else {
+                // Add messages normally for small batches
+                messages.forEach(({ messageData, user }) => {
+                    const messageEl = document.createElement("div");
+                    messageEl.classList.add("message", messageData.sender === user.id ? "sender" : "receiver");
+                    const senderName = messageData.sender === user.id ? "You" : messageData.name;
+
+                    messageEl.innerHTML = `
+                        <div class="message-content">
+                            <div class="message-meta">${senderName} • ${messageData.created}</div>
+                            <div class="message-text">${messageData.message}</div>
+                        </div>
+                    `;
+
+                    container.appendChild(messageEl);
+                });
+
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+    });
+
+    // Update notification count
+    if (notificationCount > 0) {
         const notificationElem = document.querySelector(".newMessage-notification");
         if (notificationElem) {
             let count = parseInt(notificationElem.textContent) || 0;
-            count++;
+            count += notificationCount;
             notificationElem.textContent = count.toString();
         }
     }
 
-    fetchUserMessages(user.id);
+    // Refresh message threads
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (user) {
+        fetchUserMessages(user.id);
+    }
+
+    // Clear the queue
+    incomingMessageQueue.messages = [];
+    incomingMessageQueue.timer = null;
+};
+
+// Add messages in batches with smooth animation
+const addMessagesInBatches = async (messageElements, container) => {
+    const batchSize = 5;
+    const delay = 100; // 100ms between batches
+
+    for (let i = 0; i < messageElements.length; i += batchSize) {
+        const batch = messageElements.slice(i, i + batchSize);
+
+        batch.forEach((messageEl, index) => {
+            setTimeout(() => {
+                messageEl.style.opacity = '0';
+                messageEl.style.transform = 'translateY(10px)';
+                container.appendChild(messageEl);
+
+                // Animate in
+                requestAnimationFrame(() => {
+                    messageEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    messageEl.style.opacity = '1';
+                    messageEl.style.transform = 'translateY(0)';
+                });
+            }, index * 50); // 50ms delay between messages in batch
+        });
+
+        // Wait before next batch
+        if (i + batchSize < messageElements.length) {
+            await new Promise(resolve => setTimeout(resolve, delay + (batchSize * 50)));
+        }
+    }
+
+    // Final scroll to bottom
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 100);
 };
 
 const updatePostReactions = (reactionData) => {
@@ -1416,6 +1627,372 @@ const hideTypingIndicator = (msg) => {
         }
     }
 };
+
+// Chat pagination state
+const chatState = {
+    currentUserId: null,
+    otherUserId: null,
+    offset: 0,
+    limit: 10,
+    hasMore: true,
+    loading: false,
+    totalMessages: 0,
+    container: null
+};
+
+// Throttle function to prevent spam scroll events (300ms)
+const throttle = (func, delay) => {
+    let timeoutId;
+    let lastExecTime = 0;
+    return function (...args) {
+        const currentTime = Date.now();
+        if (currentTime - lastExecTime > delay) {
+            func.apply(this, args);
+            lastExecTime = currentTime;
+        } else {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+                lastExecTime = Date.now();
+            }, delay - (currentTime - lastExecTime));
+        }
+    };
+};
+
+// Load paginated messages from backend
+const loadPaginatedMessages = async (user1Id, user2Id, offset = 0, limit = 10) => {
+    try {
+        const token = localStorage.getItem("sessionToken");
+        const url = `/getpaginatedmessages?user1=${user1Id}&user2=${user2Id}&offset=${offset}&limit=${limit}&token=${token}`;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Failed to load messages`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        return null;
+    }
+};
+
+// Bulk message loading state for handling large message batches
+const bulkLoadingState = {
+    isLoading: false,
+    messageQueue: [],
+    currentBatch: 0,
+    batchSize: 10,
+    loadDelay: 200 // 200ms delay between batches
+};
+
+// Initialize chat with pagination (limit to 10 messages initially)
+const initializePaginatedChat = async (currentUserId, otherUserId, container) => {
+    chatState.currentUserId = currentUserId;
+    chatState.otherUserId = otherUserId;
+    chatState.offset = 0;
+    chatState.hasMore = true;
+    chatState.loading = false;
+    chatState.container = container;
+
+    // Show initial loading
+    container.innerHTML = '<div class="loading-messages"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>';
+
+    const data = await loadPaginatedMessages(currentUserId, otherUserId, 0, 10);
+    if (!data) {
+        container.innerHTML = '<div class="no-messages">Failed to load messages</div>';
+        return;
+    }
+
+    chatState.offset = data.messages.length;
+    chatState.hasMore = data.hasMore;
+    chatState.totalMessages = data.total;
+
+    // Clear loading and show content
+    container.innerHTML = '';
+
+    if (data.hasMore && data.total > 10) {
+        addLoadMoreButton(container);
+    }
+
+    // Handle bulk message loading with throttling
+    if (data.messages.length > 10) {
+        await loadMessagesInBatches(data.messages, currentUserId, container);
+    } else {
+        // Load normally for small message sets
+        data.messages.forEach(msg => {
+            const messageEl = createMessageElement(msg, currentUserId);
+            container.appendChild(messageEl);
+        });
+    }
+
+    container.scrollTop = container.scrollHeight;
+
+    // Set up scroll listener for conversations with 20+ messages (with throttling)
+    if (data.total >= 20) {
+        setupThrottledScrollListener(container);
+    } else if (data.total > 10) {
+        setupScrollListener(container);
+    }
+};
+
+// Load messages in batches with throttling (for bulk message scenarios like 32 messages)
+const loadMessagesInBatches = async (messages, currentUserId, container) => {
+    if (bulkLoadingState.isLoading) return;
+
+    bulkLoadingState.isLoading = true;
+    bulkLoadingState.messageQueue = [...messages];
+    bulkLoadingState.currentBatch = 0;
+
+    // Show bulk loading indicator
+    const bulkLoadingEl = document.createElement('div');
+    bulkLoadingEl.className = 'bulk-loading-indicator';
+    bulkLoadingEl.innerHTML = `
+        <div class="bulk-loading-content">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading messages in batches...</span>
+            <div class="batch-progress">
+                <span class="batch-current">0</span> / <span class="batch-total">${Math.ceil(messages.length / bulkLoadingState.batchSize)}</span> batches
+            </div>
+        </div>
+    `;
+    container.appendChild(bulkLoadingEl);
+
+    const loadNextBatch = async () => {
+        const startIndex = bulkLoadingState.currentBatch * bulkLoadingState.batchSize;
+        const endIndex = Math.min(startIndex + bulkLoadingState.batchSize, bulkLoadingState.messageQueue.length);
+        const batch = bulkLoadingState.messageQueue.slice(startIndex, endIndex);
+
+        // Update progress indicator
+        const progressCurrent = bulkLoadingEl.querySelector('.batch-current');
+        if (progressCurrent) {
+            progressCurrent.textContent = bulkLoadingState.currentBatch + 1;
+        }
+
+        // Load batch of messages with smooth animation
+        batch.forEach((msg, index) => {
+            setTimeout(() => {
+                const messageEl = createMessageElement(msg, currentUserId);
+                messageEl.style.opacity = '0';
+                messageEl.style.transform = 'translateY(10px)';
+
+                // Insert before the loading indicator
+                container.insertBefore(messageEl, bulkLoadingEl);
+
+                // Animate in
+                requestAnimationFrame(() => {
+                    messageEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    messageEl.style.opacity = '1';
+                    messageEl.style.transform = 'translateY(0)';
+                });
+
+                // Auto-scroll to bottom for the last message in batch
+                if (index === batch.length - 1) {
+                    setTimeout(() => {
+                        container.scrollTop = container.scrollHeight;
+                    }, 100);
+                }
+            }, index * 50); // 50ms delay between individual messages in batch
+        });
+
+        bulkLoadingState.currentBatch++;
+
+        // Check if more batches remain
+        if (endIndex < bulkLoadingState.messageQueue.length) {
+            // Schedule next batch with throttle delay
+            setTimeout(() => {
+                loadNextBatch();
+            }, bulkLoadingState.loadDelay + (batch.length * 50)); // Wait for current batch animation + delay
+        } else {
+            // All batches loaded, cleanup
+            setTimeout(() => {
+                bulkLoadingEl.remove();
+                bulkLoadingState.isLoading = false;
+                bulkLoadingState.messageQueue = [];
+                bulkLoadingState.currentBatch = 0;
+
+                // Final scroll to bottom
+                container.scrollTop = container.scrollHeight;
+
+                console.log(`✅ Bulk loading complete: ${messages.length} messages loaded in ${Math.ceil(messages.length / bulkLoadingState.batchSize)} batches`);
+            }, 300);
+        }
+    };
+
+    // Start loading batches
+    await loadNextBatch();
+};
+
+// Load more messages in batches (for scroll loading scenarios)
+const loadMoreMessagesInBatches = async (messages, container, originalScrollHeight) => {
+    if (bulkLoadingState.isLoading) return;
+
+    bulkLoadingState.isLoading = true;
+    bulkLoadingState.messageQueue = [...messages];
+    bulkLoadingState.currentBatch = 0;
+
+    const loadNextBatch = async () => {
+        const startIndex = bulkLoadingState.currentBatch * bulkLoadingState.batchSize;
+        const endIndex = Math.min(startIndex + bulkLoadingState.batchSize, bulkLoadingState.messageQueue.length);
+        const batch = bulkLoadingState.messageQueue.slice(startIndex, endIndex);
+
+        // Load batch of messages with smooth animation
+        batch.forEach((msg, index) => {
+            setTimeout(() => {
+                const messageEl = createMessageElement(msg, chatState.currentUserId);
+                messageEl.style.opacity = '0';
+                messageEl.style.transform = 'translateY(-10px)';
+
+                // Insert at the top (after load more button if exists)
+                const loadMoreBtn = container.querySelector('.load-more-messages');
+                if (loadMoreBtn) {
+                    container.insertBefore(messageEl, loadMoreBtn.nextSibling);
+                } else {
+                    container.insertBefore(messageEl, container.firstChild);
+                }
+
+                // Animate in
+                requestAnimationFrame(() => {
+                    messageEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    messageEl.style.opacity = '1';
+                    messageEl.style.transform = 'translateY(0)';
+                });
+            }, index * 30); // 30ms delay between individual messages in batch
+        });
+
+        bulkLoadingState.currentBatch++;
+
+        // Check if more batches remain
+        if (endIndex < bulkLoadingState.messageQueue.length) {
+            // Schedule next batch with throttle delay
+            setTimeout(() => {
+                loadNextBatch();
+            }, bulkLoadingState.loadDelay + (batch.length * 30)); // Wait for current batch animation + delay
+        } else {
+            // All batches loaded, cleanup and adjust scroll
+            setTimeout(() => {
+                bulkLoadingState.isLoading = false;
+                bulkLoadingState.messageQueue = [];
+                bulkLoadingState.currentBatch = 0;
+
+                // Maintain scroll position
+                container.scrollTop = container.scrollHeight - originalScrollHeight;
+
+                console.log(`✅ Bulk load more complete: ${messages.length} messages loaded in ${Math.ceil(messages.length / bulkLoadingState.batchSize)} batches`);
+            }, 200);
+        }
+    };
+
+    // Start loading batches
+    await loadNextBatch();
+};
+
+// Create message element
+const createMessageElement = (msg, currentUserId) => {
+    const messageEl = document.createElement("div");
+    messageEl.classList.add("message", msg.sender === currentUserId ? "sender" : "receiver");
+    const displayName = msg.sender === currentUserId ? "You" : msg.name || "Unknown User";
+
+    messageEl.innerHTML = `
+        <div class="message-content">
+            <div class="message-meta">${displayName} • ${msg.created}</div>
+            <div class="message-text">${msg.message}</div>
+        </div>
+    `;
+
+    return messageEl;
+};
+
+// Add "Load More" button
+const addLoadMoreButton = (container) => {
+    const loadMoreDiv = document.createElement('div');
+    loadMoreDiv.className = 'load-more-messages';
+    loadMoreDiv.innerHTML = `
+        <button class="load-more-btn" onclick="loadMoreMessages()">
+            <i class="fas fa-chevron-up"></i>
+            Load more messages
+        </button>
+    `;
+    container.insertBefore(loadMoreDiv, container.firstChild);
+};
+
+// Setup scroll listener for conversations with 11-19 messages (no throttling)
+const setupScrollListener = (container) => {
+    container.addEventListener('scroll', async () => {
+        if (container.scrollTop <= 50 && chatState.hasMore && !chatState.loading) {
+            await loadMoreMessages();
+        }
+    });
+};
+
+// Setup throttled scroll listener for conversations with 20+ messages
+const setupThrottledScrollListener = (container) => {
+    const throttledHandler = throttle(async () => {
+        if (container.scrollTop <= 50 && chatState.hasMore && !chatState.loading) {
+            await loadMoreMessages();
+        }
+    }, 300); // 300ms throttle to prevent spam
+
+    container.addEventListener('scroll', throttledHandler);
+};
+
+// Load more messages (loads exactly 10 more)
+const loadMoreMessages = async () => {
+    if (chatState.loading || !chatState.hasMore) return;
+
+    chatState.loading = true;
+    const container = chatState.container;
+
+    // Show loading indicator
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'loading-more-messages';
+    loadingEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading more messages...';
+    container.insertBefore(loadingEl, container.firstChild);
+
+    const scrollHeight = container.scrollHeight;
+
+    try {
+        const data = await loadPaginatedMessages(chatState.currentUserId, chatState.otherUserId, chatState.offset, 10);
+        if (!data) return;
+
+        // Remove loading indicator
+        loadingEl.remove();
+
+        chatState.offset += data.messages.length;
+        chatState.hasMore = data.hasMore;
+
+        // Handle bulk loading for large message sets (more than 10 messages)
+        if (data.messages.length > 10) {
+            await loadMoreMessagesInBatches(data.messages.reverse(), container, scrollHeight);
+        } else {
+            // Load normally for small message sets
+            data.messages.reverse().forEach(msg => {
+                const messageEl = createMessageElement(msg, chatState.currentUserId);
+                const loadMoreBtn = container.querySelector('.load-more-messages');
+                if (loadMoreBtn) {
+                    container.insertBefore(messageEl, loadMoreBtn.nextSibling);
+                } else {
+                    container.insertBefore(messageEl, container.firstChild);
+                }
+            });
+
+            container.scrollTop = container.scrollHeight - scrollHeight;
+        }
+
+        if (!data.hasMore) {
+            const loadMoreBtn = container.querySelector('.load-more-messages');
+            if (loadMoreBtn) loadMoreBtn.remove();
+        }
+
+    } catch (error) {
+        console.error('Error loading more messages:', error);
+        loadingEl.remove();
+    } finally {
+        chatState.loading = false;
+    }
+};
+
+// Make loadMoreMessages globally available for button clicks
+window.loadMoreMessages = loadMoreMessages;
 
 const addFooter = () => {
     const existingFooter = document.querySelector("footer");
