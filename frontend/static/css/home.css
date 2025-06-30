@@ -1924,3 +1924,131 @@ body.modal-open {
         right: max(clamp(20px, 4vw, 32px), env(safe-area-inset-right));
     }
 }
+
+/* Bulk Loading Indicator Styles */
+.bulk-loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    margin: 8px 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bulk-loading-content {
+    text-align: center;
+    color: #495057;
+}
+
+.bulk-loading-content i {
+    font-size: 18px;
+    color: var(--primary-blue);
+    margin-bottom: 8px;
+    animation: spin 1s linear infinite;
+}
+
+.bulk-loading-content span {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.batch-progress {
+    font-size: 12px;
+    color: #6c757d;
+    background: rgba(74, 144, 226, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.batch-current {
+    font-weight: 600;
+    color: var(--primary-blue);
+}
+
+.batch-total {
+    font-weight: 600;
+}
+
+/* Message Animation Styles */
+.message {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.message.loading {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+/* Mobile adjustments for bulk loading */
+@media (max-width: 768px) {
+    .bulk-loading-indicator {
+        padding: 12px;
+        margin: 6px 0;
+    }
+
+    .bulk-loading-content i {
+        font-size: 16px;
+    }
+
+    .bulk-loading-content span {
+        font-size: 13px;
+    }
+
+    .batch-progress {
+        font-size: 11px;
+        padding: 3px 6px;
+    }
+}
+
+/* Instant Chat Display Animations */
+.messageThread {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.messageThread[style*="flex"] {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.thread {
+    opacity: 0;
+    transform: translateX(-20px);
+    animation: slideInThread 0.3s ease forwards;
+}
+
+.thread:nth-child(1) { animation-delay: 0ms; }
+.thread:nth-child(2) { animation-delay: 50ms; }
+.thread:nth-child(3) { animation-delay: 100ms; }
+.thread:nth-child(4) { animation-delay: 150ms; }
+.thread:nth-child(5) { animation-delay: 200ms; }
+.thread:nth-child(n+6) { animation-delay: 250ms; }
+
+@keyframes slideInThread {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Instant message display */
+.chat-messages .message,
+#chat .message {
+    opacity: 0;
+    transform: translateY(5px);
+    animation: fadeInMessage 0.2s ease forwards;
+}
+
+@keyframes fadeInMessage {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
