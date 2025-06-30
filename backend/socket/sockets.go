@@ -35,6 +35,7 @@ type Message struct {
 	Receiver string `json:"receiver"`
 	Sender   string `json:"sender"`
 	Name     string `json:"name"`
+	Image    string `json:"image"`
 	Seen     bool   `json:"seen"`
 	Created  string `json:"created"`
 }

@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
+
 	"real_time_forum/backend/db/controllers"
 )
 
@@ -13,12 +15,11 @@ type Message struct {
 	Content  string `json:"message"`
 	Receiver string `json:"receiver"`
 	Sender   string `json:"sender"`
-	Name 	string `json:"name"`
+	Name     string `json:"name"`
+	Image    string `json:"image"`
 	Seen     bool   `json:"seen"`
 	Created  string `json:"created"`
 }
-
-
 func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 	var (
 		newMessage    Message
@@ -33,6 +34,7 @@ func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		log.Println("Error reading request body:", err)
+		http.Error(w, "Failed to retrieve thread IDs", http.StatusInternalServerError)
 		return
 	}
 	r.Body.Close()
@@ -53,15 +55,15 @@ func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 
 		newThreadId, err := controllers.CreateNewMessageTable(newMessage.Sender, newMessage.Receiver)
-
 		if err != nil {
 			log.Println(err.Error())
+			http.Error(w, "Failed to retrieve messages", http.StatusInternalServerError)
 			return
 		}
 
 		messageToSave = fmt.Sprintf(`
-		[{"message": "%s", "sender": "%s", "receiver": "%s","name" : "%s", "created": "%s", "seen": %t}]
-		`, newMessage.Content, newMessage.Sender, newMessage.Receiver, newMessage.Name, newMessage.Created, newMessage.Seen)
+		[{"message": "%s", "sender": "%s", "receiver": "%s","name" : "%s", "image": "%s", "created": "%s", "seen": %t}]
+		`, newMessage.Content, newMessage.Sender, newMessage.Receiver, newMessage.Name, newMessage.Image, newMessage.Created, newMessage.Seen)
 
 		if err = controllers.CreateNewThread(messageToSave, newThreadId); err != nil {
 			log.Println("Thread Does Not Exist: ", err)
@@ -70,10 +72,10 @@ func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 		res, _ := json.Marshal(newMessage)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message" : "Messages updated successfully", "data" : string(res) })
+		json.NewEncoder(w).Encode(map[string]string{"message": "Messages updated successfully", "data": string(res)})
 
 	} else {
-		messages, err := controllers.GetMessages(threadId)
+		messages, err := controllers.GetMessages(threadId, 1000, 0) // Get all messages
 		if err != nil {
 			log.Println(err.Error())
 			return
@@ -90,7 +92,7 @@ func HandlePrivateMessage(w http.ResponseWriter, r *http.Request) {
 		res, _ := json.Marshal(newMessage)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"message" : "Messages updated successfully", "data" : string(res)})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Messages updated successfully", "data": string(res)})
 
 	}
 }
@@ -100,12 +102,26 @@ func GetUserMessages(w http.ResponseWriter, r *http.Request) {
 	limit := r.URL.Query().Get("limit")
 	offset := r.URL.Query().Get("offset")
 
+	// Convert string parameters to integers with defaults
+	limitInt := 1000 // Default to get all messages
+	offsetInt := 0   // Default offset
+
+	if limit != "" {
+		if l, err := strconv.Atoi(limit); err == nil {
+			limitInt = l
+		}
+	}
+	if offset != "" {
+		if o, err := strconv.Atoi(offset); err == nil {
+			offsetInt = o
+		}
+	}
 	if userId == "" {
+		http.Error(w, "Missing userId parameter", http.StatusBadRequest)
 		return
 	}
 
 	threadIds, err := controllers.GetUserThreadIds(userId)
-
 	if err != nil {
 		log.Println(err)
 		return
@@ -114,7 +130,7 @@ func GetUserMessages(w http.ResponseWriter, r *http.Request) {
 	var userMessages []string
 
 	for _, threadId := range threadIds {
-		message, err := controllers.GetMessages(threadId, limit, offset)
+		message, err := controllers.GetMessages(threadId, limitInt, offsetInt)
 		if err != nil {
 			log.Println(err)
 			return
@@ -124,5 +140,5 @@ func GetUserMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"data" : userMessages})
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": userMessages})
 }
