@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
 	"sync"
+
+	"real_time_forum/backend/db/controllers"
 
 	"github.com/gorilla/websocket"
 )
@@ -60,7 +63,6 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
 		var receiveinter map[string]interface{}
 		err := conn.ReadJSON(&receiveinter)
 		// log.Println("received: ", receiveinter)
-
 		if err != nil {
 			log.Println("❌ ReadJSON error:", err)
 			mu.Lock()
@@ -184,7 +186,7 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
 				log.Println("Unmarshal error:", err)
 				return
 			}
-			
+
 			sender := data.Sender
 			receiver := data.Receiver
 
@@ -216,12 +218,12 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
 			senderid := receiveinter["senderid"].(string)
 			sendername := receiveinter["sendername"].(string)
 			data := struct {
-				Type string      `json:"type"`
-				SenderId string `json:"senderid"`
+				Type       string `json:"type"`
+				SenderId   string `json:"senderid"`
 				SenderName string `json:"sendername"`
 			}{
-				Type: "typing",
-				SenderId: senderid,
+				Type:       "typing",
+				SenderId:   senderid,
 				SenderName: sendername,
 			}
 
@@ -242,12 +244,12 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
 			senderid := receiveinter["senderid"].(string)
 			sendername := receiveinter["sendername"].(string)
 			data := struct {
-				Type string      `json:"type"`
-				SenderId string `json:"senderid"`
+				Type       string `json:"type"`
+				SenderId   string `json:"senderid"`
 				SenderName string `json:"sendername"`
 			}{
-				Type: "stoptyping",
-				SenderId: senderid,
+				Type:       "stoptyping",
+				SenderId:   senderid,
 				SenderName: sendername,
 			}
 
@@ -272,11 +274,51 @@ func HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 func handleUser(conn *websocket.Conn, user User) {
 	mu.Lock()
-	if _, ok := usersonline[conn]; !ok  {
+	if _, ok := usersonline[conn]; !ok {
 		usersonline[conn] = user.Id
 		users = append(users, user)
 	}
 	mu.Unlock()
+	sort.Slice(users, func(i, j int) bool {
+		iThreads, err := controllers.GetUserThreadIds(users[i].Id)
+		if err != nil {
+			return false
+		}
+		jThreads, err := controllers.GetUserThreadIds(users[j].Id)
+		if err != nil {
+			return false
+		}
+
+		var iLastMessage string
+		for _, threadId := range iThreads {
+			msg, err := controllers.GetLastMessage(threadId)
+			if err == nil && msg != "" {
+				if iLastMessage == "" || msg > iLastMessage {
+					iLastMessage = msg
+				}
+			}
+		}
+
+		var jLastMessage string
+		for _, threadId := range jThreads {
+			msg, err := controllers.GetLastMessage(threadId)
+			if err == nil && msg != "" {
+				if jLastMessage == "" || msg > jLastMessage {
+					jLastMessage = msg
+				}
+			}
+		}
+
+		if iLastMessage != "" && jLastMessage != "" {
+			return iLastMessage > jLastMessage
+		} else if iLastMessage != "" {
+			return true
+		} else if jLastMessage != "" {
+			return false
+		} else {
+			return users[i].Name < users[j].Name
+		}
+	})
 	broadcastUsers()
 }
 
