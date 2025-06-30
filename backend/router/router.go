@@ -30,6 +30,10 @@ func Routes() {
 	http.HandleFunc("/privateMessage", handlers.AuthMiddleware(handlers.HandlePrivateMessage))
 	http.HandleFunc("/getusermessages", handlers.AuthMiddleware(handlers.GetUserMessages))
 
+	http.HandleFunc("/upload-image", handlers.AuthMiddleware(handlers.UploadImageHandler))
+
+	http.HandleFunc("/user-profile", handlers.AuthMiddleware(handlers.GetUserProfileHandler))
+
 	// WebSocket route - authentication handled in socket
 	http.HandleFunc("/ws", socket.HandleRequest)
 
