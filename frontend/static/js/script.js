@@ -608,7 +608,7 @@ const updateUserList = (msg, userData) => {
 
     userListContainer.innerHTML = onlineUsers.map(user => `
         <div class="user-item">
-            <button type="button" class="user-button" data-userid="${user.id}">
+            <button type="button" class="user-button" data-userid="${user.id}" data-username="${user.name}">
                 <img src="https://ui-avatars.com/api/?name=${user.name}&background=4A90E2&color=fff&size=72" 
                      alt="${user.name}" class="user-avatar-small">
                 <div class="user-info">
@@ -622,6 +622,8 @@ const updateUserList = (msg, userData) => {
             <div class="chat-form" id="chatForm_${user.id}">
                 <div class="chat-form-content">
                     <input type="text" placeholder="Type a message..." class="chat-input" data-receiver="${user.id}">
+                    <input type="file" class="image-input" data-receiver="${user.id}" accept="image/*" style="display: none;">
+                    <button type="button" class="image-upload-btn" data-receiver="${user.id}"><i class="fas fa-paperclip"></i></button>
                     <button type="button" class="chat-send-btn" data-receiver="${user.id}">
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -632,12 +634,74 @@ const updateUserList = (msg, userData) => {
 
     // Add click handlers for users
     setupUserClickHandlers();
+
+    // Add click handlers for user profile display
+    document.querySelectorAll('.user-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            // Prevent opening chat form if clicking on the image upload or send button
+            if (e.target.closest('.image-upload-btn') || e.target.closest('.chat-send-btn')) {
+                return;
+            }
+            const userId = button.dataset.userid;
+            showUserProfileModal(userId);
+        });
+    });
 };
+
+const showUserProfileModal = async (userId) => {
+    const profileModal = document.getElementById("profileModal");
+    const modalOverlay = document.getElementById("modalOverlay");
+
+    if (!profileModal || !modalOverlay) return;
+
+    try {
+        const response = await fetch(`/user-profile?userId=${userId}`);
+        if (!response.ok) {
+            throw new Error("Failed to fetch user profile");
+        }
+        const userProfile = await response.json();
+
+        profileModal.innerHTML = `
+            <div class="profile-header">
+                <h3>${userProfile.username}</h3>
+                <button class="close-profile-modal">&times;</button>
+            </div>
+            <div class="profile-details">
+                <p><strong>Name:</strong> ${userProfile.firstname} ${userProfile.lastname}</p>
+                <p><strong>Email:</strong> ${userProfile.email}</p>
+                <p><strong>Age:</strong> ${userProfile.age}</p>
+                <p><strong>Gender:</strong> ${userProfile.gender}</p>
+            </div>
+        `;
+
+        profileModal.classList.add("active");
+        modalOverlay.classList.add("active");
+
+        document.querySelector('.close-profile-modal').addEventListener('click', () => {
+            profileModal.classList.remove("active");
+            modalOverlay.classList.remove("active");
+        });
+
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                profileModal.classList.remove("active");
+                modalOverlay.classList.remove("active");
+            }
+        });
+
+    } catch (error) {
+        console.error("Error fetching user profile:", error);
+        notify("Failed to load user profile", "#E74C3C");
+    }
+};
+// };
 
 const setupUserClickHandlers = () => {
     const userButtons = document.querySelectorAll('.user-button');
     const chatSendBtns = document.querySelectorAll('.chat-send-btn');
     const chatInputs = document.querySelectorAll('.chat-input');
+    const imageUploadBtns = document.querySelectorAll('.image-upload-btn');
+    const imageInputs = document.querySelectorAll('.image-input');
 
     userButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -671,13 +735,51 @@ const setupUserClickHandlers = () => {
             }
         });
     });
+
+    imageUploadBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const receiverId = btn.dataset.receiver;
+            const imageInput = document.querySelector(`.image-input[data-receiver="${receiverId}"]`);
+            imageInput.click();
+        });
+    });
+
+    imageInputs.forEach(input => {
+        input.addEventListener('change', async (e) => {
+            const receiverId = e.target.dataset.receiver;
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                try {
+                    const response = await fetch('/upload-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                        sendQuickMessage(receiverId, '', data.imageUrl);
+                    } else {
+                        notify('Image upload failed', '#E74C3C');
+                    }
+                } catch (error) {
+                    console.error('Image upload failed:', error);
+                    notify('Image upload failed', '#E74C3C');
+                }
+            }
+        });
+    });
 };
 
-const sendQuickMessage = async (receiverId) => {
+const sendQuickMessage = async (receiverId, message = '', imageUrl = '') => {
     const input = document.querySelector(`.chat-input[data-receiver="${receiverId}"]`);
-    const message = input.value.trim();
+    if (message === '') {
+        message = input.value.trim();
+    }
 
-    if (!message) return;
+    if (!message && !imageUrl) return;
 
     const user = JSON.parse(localStorage.getItem("user"));
 
@@ -690,6 +792,7 @@ const sendQuickMessage = async (receiverId) => {
                 receiver: receiverId,
                 sender: user.id,
                 name: user.username,
+                image: imageUrl,
                 seen: false,
                 created: new Date().toLocaleString('en-US', { hour12: false })
             })
@@ -1307,10 +1410,16 @@ const loadMessagesIntoContainer = (messages, userid, container) => {
         messageEl.classList.add("message", msg.sender === userid ? "sender" : "receiver");
         const displayName = msg.sender === userid ? "You" : msg.name || "Unknown User";
 
+        let imageHTML = '';
+        if (msg.image) {
+            imageHTML = `<img src="${msg.image}" alt="Image" class="message-image">`;
+        }
+
         messageEl.innerHTML = `
             <div class="message-content">
                 <div class="message-meta">${displayName} • ${msg.created}</div>
                 <div class="message-text">${msg.message}</div>
+                ${imageHTML}
             </div>
         `;
 
