@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
+	"sort"
 
 	"github.com/gofrs/uuid"
 )
@@ -45,8 +47,7 @@ func CreateNewMessageTable(user1Id, user2Id string) (string, error) {
 
 	stm := `INSERT INTO messages(id, user1Id, user2Id, threadId) VALUES(?,?,?,?)`
 
-	_, err = DB.Exec(stm, id.String(), user1Id, user2Id, threadId.String(),)
-
+	_, err = DB.Exec(stm, id.String(), user1Id, user2Id, threadId.String())
 	if err != nil {
 		return "", err
 	}
@@ -57,7 +58,6 @@ func CreateNewMessageTable(user1Id, user2Id string) (string, error) {
 func CreateNewThread(message, id string) error {
 	stm := `INSERT INTO thread(id, messages) VALUES(?, ?) `
 	_, err = DB.Exec(stm, id, message)
-
 	if err != nil {
 		return err
 	}
@@ -65,19 +65,83 @@ func CreateNewThread(message, id string) error {
 	return nil
 }
 
-
-func GetMessages(threadId string) (string, error) {
+func GetLastMessage(threadId string) (string, error) {
 	var messages string
 
 	stm := `SELECT messages FROM thread WHERE id = ?`
 
 	err := DB.QueryRow(stm, threadId).Scan(&messages)
-
 	if err != nil {
 		return "", err
 	}
 
-	return messages, nil
+	var messageSlice []map[string]interface{}
+	if err := json.Unmarshal([]byte(messages), &messageSlice); err != nil {
+		return "", err
+	}
+
+	if len(messageSlice) == 0 {
+		return "", nil
+	}
+
+	sort.Slice(messageSlice, func(i, j int) bool {
+		ti, iOK := messageSlice[i]["created"].(string)
+		tj, jOK := messageSlice[j]["created"].(string)
+		if iOK && jOK {
+			return ti > tj
+		}
+		return false
+	})
+
+	lastMessage, err := json.Marshal(messageSlice[0])
+	if err != nil {
+		return "", err
+	}
+
+	return string(lastMessage), nil
+}
+
+func GetMessages(threadId string, limit, offset int) (string, error) {
+	var messages string
+
+	stm := `SELECT messages FROM thread WHERE id = ?`
+
+	err := DB.QueryRow(stm, threadId).Scan(&messages)
+	if err != nil {
+		return "", err
+	}
+
+	var messageSlice []map[string]interface{}
+	if err := json.Unmarshal([]byte(messages), &messageSlice); err != nil {
+		return "", err
+	}
+
+	sort.Slice(messageSlice, func(i, j int) bool {
+		ti, iOK := messageSlice[i]["created"].(string)
+		tj, jOK := messageSlice[j]["created"].(string)
+		if iOK && jOK {
+			return ti > tj
+		}
+		return false
+	})
+
+	start := offset
+	end := offset + limit
+	if start > len(messageSlice) {
+		start = len(messageSlice)
+	}
+	if end > len(messageSlice) {
+		end = len(messageSlice)
+	}
+
+	pagedMessages := messageSlice[start:end]
+
+	result, err := json.Marshal(pagedMessages)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
 }
 
 func UpdateMessageThread(threadId, message string) error {
