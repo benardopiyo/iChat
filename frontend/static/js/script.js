@@ -1350,8 +1350,8 @@ const showEnhancedChatInterfaceInstant = (messages, userid, otherUser) => {
         receiverIdInput.value = otherUser.id;
     }
 
-    // Show ALL messages instantly without pagination
-    loadMessagesIntoContainer(messages, userid, chatMessages);
+    // Use pagination to show only last 10 messages initially
+    initializePaginatedChat(messages, userid, otherUser.id, chatMessages);
 
     // Clear notification count for this conversation
     clearNotificationCount();
@@ -1380,8 +1380,8 @@ const showHeaderChatInterfaceInstant = (messages, userid, otherUser) => {
         receiverIdInput.value = otherUser.id;
     }
 
-    // Show ALL messages instantly without pagination
-    loadMessagesIntoContainer(messages, userid, chatContainer);
+    // Use pagination to show only last 10 messages initially
+    initializePaginatedChat(messages, userid, otherUser.id, chatContainer);
 
     // Clear notification count for this conversation
     clearNotificationCount();
@@ -1399,29 +1399,184 @@ const loadMessages = (messages, userid) => {
     loadMessagesIntoContainer(messages, userid, chatContainer);
 };
 
-// Unified function to load messages into any container - instant display with animations
-const loadMessagesIntoContainer = (messages, userid, container) => {
+// Pagination state for chat messages
+const chatPaginationState = {
+    currentConversation: null,
+    currentUserId: null,
+    otherUserId: null,
+    allMessages: [],
+    displayedMessages: [],
+    messagesPerPage: 10,
+    currentPage: 0,
+    isLoading: false,
+    container: null,
+    hasMoreMessages: false
+};
+
+// Initialize paginated chat with only last 10 messages
+const initializePaginatedChat = (messages, userid, otherUserId, container) => {
     if (!container) return;
 
+    // Reset pagination state
+    chatPaginationState.currentUserId = userid;
+    chatPaginationState.otherUserId = otherUserId;
+    chatPaginationState.allMessages = [...messages];
+    chatPaginationState.container = container;
+    chatPaginationState.currentPage = 0;
+    chatPaginationState.isLoading = false;
+
+    // Calculate pagination
+    const totalMessages = messages.length;
+    chatPaginationState.hasMoreMessages = totalMessages > chatPaginationState.messagesPerPage;
+
+    // Get last 10 messages (most recent)
+    const startIndex = Math.max(0, totalMessages - chatPaginationState.messagesPerPage);
+    const initialMessages = messages.slice(startIndex);
+    chatPaginationState.displayedMessages = [...initialMessages];
+
+    // Clear container and load initial messages
     container.innerHTML = "";
 
-    messages.forEach((msg, index) => {
-        const messageEl = document.createElement("div");
-        messageEl.classList.add("message", msg.sender === userid ? "sender" : "receiver");
-        const displayName = msg.sender === userid ? "You" : msg.name || "Unknown User";
+    // Add "Load More" button if there are more messages
+    if (chatPaginationState.hasMoreMessages) {
+        addLoadMoreButton(container);
+    }
 
-        let imageHTML = '';
-        if (msg.image) {
-            imageHTML = `<img src="${msg.image}" alt="Image" class="message-image">`;
+    // Display initial messages
+    loadMessagesIntoContainer(initialMessages, userid, container, false);
+
+    // Setup scroll listener for automatic loading
+    setupScrollListener(container);
+
+    console.log(`📄 Initialized paginated chat: showing ${initialMessages.length} of ${totalMessages} messages`);
+};
+
+// Add "Load More" button at the top of chat
+const addLoadMoreButton = (container) => {
+    const loadMoreDiv = document.createElement('div');
+    loadMoreDiv.className = 'load-more-messages';
+    loadMoreDiv.innerHTML = `
+        <button class="load-more-btn" onclick="loadMoreMessages()">
+            <i class="fas fa-chevron-up"></i>
+            Load ${Math.min(chatPaginationState.messagesPerPage, chatPaginationState.allMessages.length - chatPaginationState.displayedMessages.length)} more messages
+        </button>
+    `;
+    container.insertBefore(loadMoreDiv, container.firstChild);
+};
+
+// Load more messages when button is clicked or scroll reaches top
+const loadMoreMessages = () => {
+    if (chatPaginationState.isLoading || !chatPaginationState.hasMoreMessages) return;
+
+    chatPaginationState.isLoading = true;
+    const container = chatPaginationState.container;
+
+    // Calculate which messages to load next
+    const totalMessages = chatPaginationState.allMessages.length;
+    const currentDisplayed = chatPaginationState.displayedMessages.length;
+    const remainingMessages = totalMessages - currentDisplayed;
+
+    if (remainingMessages <= 0) {
+        chatPaginationState.hasMoreMessages = false;
+        const loadMoreBtn = container.querySelector('.load-more-messages');
+        if (loadMoreBtn) loadMoreBtn.remove();
+        chatPaginationState.isLoading = false;
+        return;
+    }
+
+    // Get next batch of messages (working backwards from the start)
+    const messagesToLoad = Math.min(chatPaginationState.messagesPerPage, remainingMessages);
+    const startIndex = totalMessages - currentDisplayed - messagesToLoad;
+    const endIndex = totalMessages - currentDisplayed;
+    const newMessages = chatPaginationState.allMessages.slice(startIndex, endIndex);
+
+    // Store scroll position
+    const scrollHeight = container.scrollHeight;
+
+    // Add new messages to displayed array
+    chatPaginationState.displayedMessages = [...newMessages, ...chatPaginationState.displayedMessages];
+
+    // Insert new messages at the top (after load more button)
+    newMessages.reverse().forEach(msg => {
+        const messageEl = createMessageElement(msg, chatPaginationState.currentUserId);
+        const loadMoreBtn = container.querySelector('.load-more-messages');
+        if (loadMoreBtn) {
+            container.insertBefore(messageEl, loadMoreBtn.nextSibling);
+        } else {
+            container.insertBefore(messageEl, container.firstChild);
         }
+    });
 
-        messageEl.innerHTML = `
-            <div class="message-content">
-                <div class="message-meta">${displayName} • ${msg.created}</div>
-                <div class="message-text">${msg.message}</div>
-                ${imageHTML}
-            </div>
-        `;
+    // Update load more button or remove it
+    const stillHasMore = chatPaginationState.displayedMessages.length < totalMessages;
+    chatPaginationState.hasMoreMessages = stillHasMore;
+
+    if (stillHasMore) {
+        const loadMoreBtn = container.querySelector('.load-more-btn');
+        if (loadMoreBtn) {
+            const remaining = totalMessages - chatPaginationState.displayedMessages.length;
+            loadMoreBtn.innerHTML = `
+                <i class="fas fa-chevron-up"></i>
+                Load ${Math.min(chatPaginationState.messagesPerPage, remaining)} more messages
+            `;
+        }
+    } else {
+        const loadMoreDiv = container.querySelector('.load-more-messages');
+        if (loadMoreDiv) loadMoreDiv.remove();
+    }
+
+    // Maintain scroll position
+    container.scrollTop = container.scrollHeight - scrollHeight;
+
+    chatPaginationState.isLoading = false;
+    console.log(`📄 Loaded ${newMessages.length} more messages. Total displayed: ${chatPaginationState.displayedMessages.length}/${totalMessages}`);
+};
+
+// Setup scroll listener for automatic loading when reaching top
+const setupScrollListener = (container) => {
+    container.addEventListener('scroll', () => {
+        if (container.scrollTop <= 21 && chatPaginationState.hasMoreMessages && !chatPaginationState.isLoading) {
+            loadMoreMessages();
+        }
+    });
+};
+
+// Create individual message element
+const createMessageElement = (msg, userid) => {
+    const messageEl = document.createElement("div");
+    messageEl.classList.add("message", msg.sender === userid ? "sender" : "receiver");
+    const displayName = msg.sender === userid ? "You" : msg.name || "Unknown User";
+
+    let imageHTML = '';
+    if (msg.image) {
+        imageHTML = `<img src="${msg.image}" alt="Image" class="message-image">`;
+    }
+
+    messageEl.innerHTML = `
+        <div class="message-content">
+            <div class="message-meta">${displayName} • ${msg.created}</div>
+            <div class="message-text">${msg.message}</div>
+            ${imageHTML}
+        </div>
+    `;
+
+    return messageEl;
+};
+
+// Make loadMoreMessages globally available
+window.loadMoreMessages = loadMoreMessages;
+
+// Updated unified function to load messages into any container
+const loadMessagesIntoContainer = (messages, userid, container, shouldScroll = true) => {
+    if (!container) return;
+
+    // If container is empty, clear it, otherwise append
+    if (shouldScroll) {
+        container.innerHTML = "";
+    }
+
+    messages.forEach((msg, index) => {
+        const messageEl = createMessageElement(msg, userid);
 
         // Add staggered animation delay for smooth appearance
         messageEl.style.animationDelay = `${index * 20}ms`;
@@ -1429,12 +1584,14 @@ const loadMessagesIntoContainer = (messages, userid, container) => {
         container.appendChild(messageEl);
     });
 
-    // Scroll to bottom after all messages are added
-    setTimeout(() => {
-        container.scrollTop = container.scrollHeight;
-    }, 100);
+    // Scroll to bottom after all messages are added (only for initial load)
+    if (shouldScroll) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 100);
+    }
 
-    console.log(`💬 Displayed ${messages.length} messages instantly with animations`);
+    console.log(`💬 Displayed ${messages.length} messages with animations`);
 };
 
 // Clear notification count when opening a chat
@@ -1737,371 +1894,17 @@ const hideTypingIndicator = (msg) => {
     }
 };
 
-// Chat pagination state
-const chatState = {
-    currentUserId: null,
-    otherUserId: null,
-    offset: 0,
-    limit: 10,
-    hasMore: true,
-    loading: false,
-    totalMessages: 0,
-    container: null
-};
 
-// Throttle function to prevent spam scroll events (300ms)
-const throttle = (func, delay) => {
-    let timeoutId;
-    let lastExecTime = 0;
-    return function (...args) {
-        const currentTime = Date.now();
-        if (currentTime - lastExecTime > delay) {
-            func.apply(this, args);
-            lastExecTime = currentTime;
-        } else {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => {
-                func.apply(this, args);
-                lastExecTime = Date.now();
-            }, delay - (currentTime - lastExecTime));
-        }
-    };
-};
 
-// Load paginated messages from backend
-const loadPaginatedMessages = async (user1Id, user2Id, offset = 0, limit = 10) => {
-    try {
-        const token = localStorage.getItem("sessionToken");
-        const url = `/getpaginatedmessages?user1=${user1Id}&user2=${user2Id}&offset=${offset}&limit=${limit}&token=${token}`;
 
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: Failed to load messages`);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('Error loading messages:', error);
-        return null;
-    }
-};
 
-// Bulk message loading state for handling large message batches
-const bulkLoadingState = {
-    isLoading: false,
-    messageQueue: [],
-    currentBatch: 0,
-    batchSize: 10,
-    loadDelay: 200 // 200ms delay between batches
-};
 
-// Initialize chat with pagination (limit to 10 messages initially)
-const initializePaginatedChat = async (currentUserId, otherUserId, container) => {
-    chatState.currentUserId = currentUserId;
-    chatState.otherUserId = otherUserId;
-    chatState.offset = 0;
-    chatState.hasMore = true;
-    chatState.loading = false;
-    chatState.container = container;
 
-    // Show initial loading
-    container.innerHTML = '<div class="loading-messages"><i class="fas fa-spinner fa-spin"></i> Loading messages...</div>';
 
-    const data = await loadPaginatedMessages(currentUserId, otherUserId, 0, 10);
-    if (!data) {
-        container.innerHTML = '<div class="no-messages">Failed to load messages</div>';
-        return;
-    }
 
-    chatState.offset = data.messages.length;
-    chatState.hasMore = data.hasMore;
-    chatState.totalMessages = data.total;
 
-    // Clear loading and show content
-    container.innerHTML = '';
 
-    if (data.hasMore && data.total > 10) {
-        addLoadMoreButton(container);
-    }
 
-    // Handle bulk message loading with throttling
-    if (data.messages.length > 10) {
-        await loadMessagesInBatches(data.messages, currentUserId, container);
-    } else {
-        // Load normally for small message sets
-        data.messages.forEach(msg => {
-            const messageEl = createMessageElement(msg, currentUserId);
-            container.appendChild(messageEl);
-        });
-    }
-
-    container.scrollTop = container.scrollHeight;
-
-    // Set up scroll listener for conversations with 20+ messages (with throttling)
-    if (data.total >= 20) {
-        setupThrottledScrollListener(container);
-    } else if (data.total > 10) {
-        setupScrollListener(container);
-    }
-};
-
-// Load messages in batches with throttling (for bulk message scenarios like 32 messages)
-const loadMessagesInBatches = async (messages, currentUserId, container) => {
-    if (bulkLoadingState.isLoading) return;
-
-    bulkLoadingState.isLoading = true;
-    bulkLoadingState.messageQueue = [...messages];
-    bulkLoadingState.currentBatch = 0;
-
-    // Show bulk loading indicator
-    const bulkLoadingEl = document.createElement('div');
-    bulkLoadingEl.className = 'bulk-loading-indicator';
-    bulkLoadingEl.innerHTML = `
-        <div class="bulk-loading-content">
-            <i class="fas fa-spinner fa-spin"></i>
-            <span>Loading messages in batches...</span>
-            <div class="batch-progress">
-                <span class="batch-current">0</span> / <span class="batch-total">${Math.ceil(messages.length / bulkLoadingState.batchSize)}</span> batches
-            </div>
-        </div>
-    `;
-    container.appendChild(bulkLoadingEl);
-
-    const loadNextBatch = async () => {
-        const startIndex = bulkLoadingState.currentBatch * bulkLoadingState.batchSize;
-        const endIndex = Math.min(startIndex + bulkLoadingState.batchSize, bulkLoadingState.messageQueue.length);
-        const batch = bulkLoadingState.messageQueue.slice(startIndex, endIndex);
-
-        // Update progress indicator
-        const progressCurrent = bulkLoadingEl.querySelector('.batch-current');
-        if (progressCurrent) {
-            progressCurrent.textContent = bulkLoadingState.currentBatch + 1;
-        }
-
-        // Load batch of messages with smooth animation
-        batch.forEach((msg, index) => {
-            setTimeout(() => {
-                const messageEl = createMessageElement(msg, currentUserId);
-                messageEl.style.opacity = '0';
-                messageEl.style.transform = 'translateY(10px)';
-
-                // Insert before the loading indicator
-                container.insertBefore(messageEl, bulkLoadingEl);
-
-                // Animate in
-                requestAnimationFrame(() => {
-                    messageEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                    messageEl.style.opacity = '1';
-                    messageEl.style.transform = 'translateY(0)';
-                });
-
-                // Auto-scroll to bottom for the last message in batch
-                if (index === batch.length - 1) {
-                    setTimeout(() => {
-                        container.scrollTop = container.scrollHeight;
-                    }, 100);
-                }
-            }, index * 50); // 50ms delay between individual messages in batch
-        });
-
-        bulkLoadingState.currentBatch++;
-
-        // Check if more batches remain
-        if (endIndex < bulkLoadingState.messageQueue.length) {
-            // Schedule next batch with throttle delay
-            setTimeout(() => {
-                loadNextBatch();
-            }, bulkLoadingState.loadDelay + (batch.length * 50)); // Wait for current batch animation + delay
-        } else {
-            // All batches loaded, cleanup
-            setTimeout(() => {
-                bulkLoadingEl.remove();
-                bulkLoadingState.isLoading = false;
-                bulkLoadingState.messageQueue = [];
-                bulkLoadingState.currentBatch = 0;
-
-                // Final scroll to bottom
-                container.scrollTop = container.scrollHeight;
-
-                console.log(`✅ Bulk loading complete: ${messages.length} messages loaded in ${Math.ceil(messages.length / bulkLoadingState.batchSize)} batches`);
-            }, 300);
-        }
-    };
-
-    // Start loading batches
-    await loadNextBatch();
-};
-
-// Load more messages in batches (for scroll loading scenarios)
-const loadMoreMessagesInBatches = async (messages, container, originalScrollHeight) => {
-    if (bulkLoadingState.isLoading) return;
-
-    bulkLoadingState.isLoading = true;
-    bulkLoadingState.messageQueue = [...messages];
-    bulkLoadingState.currentBatch = 0;
-
-    const loadNextBatch = async () => {
-        const startIndex = bulkLoadingState.currentBatch * bulkLoadingState.batchSize;
-        const endIndex = Math.min(startIndex + bulkLoadingState.batchSize, bulkLoadingState.messageQueue.length);
-        const batch = bulkLoadingState.messageQueue.slice(startIndex, endIndex);
-
-        // Load batch of messages with smooth animation
-        batch.forEach((msg, index) => {
-            setTimeout(() => {
-                const messageEl = createMessageElement(msg, chatState.currentUserId);
-                messageEl.style.opacity = '0';
-                messageEl.style.transform = 'translateY(-10px)';
-
-                // Insert at the top (after load more button if exists)
-                const loadMoreBtn = container.querySelector('.load-more-messages');
-                if (loadMoreBtn) {
-                    container.insertBefore(messageEl, loadMoreBtn.nextSibling);
-                } else {
-                    container.insertBefore(messageEl, container.firstChild);
-                }
-
-                // Animate in
-                requestAnimationFrame(() => {
-                    messageEl.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                    messageEl.style.opacity = '1';
-                    messageEl.style.transform = 'translateY(0)';
-                });
-            }, index * 30); // 30ms delay between individual messages in batch
-        });
-
-        bulkLoadingState.currentBatch++;
-
-        // Check if more batches remain
-        if (endIndex < bulkLoadingState.messageQueue.length) {
-            // Schedule next batch with throttle delay
-            setTimeout(() => {
-                loadNextBatch();
-            }, bulkLoadingState.loadDelay + (batch.length * 30)); // Wait for current batch animation + delay
-        } else {
-            // All batches loaded, cleanup and adjust scroll
-            setTimeout(() => {
-                bulkLoadingState.isLoading = false;
-                bulkLoadingState.messageQueue = [];
-                bulkLoadingState.currentBatch = 0;
-
-                // Maintain scroll position
-                container.scrollTop = container.scrollHeight - originalScrollHeight;
-
-                console.log(`✅ Bulk load more complete: ${messages.length} messages loaded in ${Math.ceil(messages.length / bulkLoadingState.batchSize)} batches`);
-            }, 200);
-        }
-    };
-
-    // Start loading batches
-    await loadNextBatch();
-};
-
-// Create message element
-const createMessageElement = (msg, currentUserId) => {
-    const messageEl = document.createElement("div");
-    messageEl.classList.add("message", msg.sender === currentUserId ? "sender" : "receiver");
-    const displayName = msg.sender === currentUserId ? "You" : msg.name || "Unknown User";
-
-    messageEl.innerHTML = `
-        <div class="message-content">
-            <div class="message-meta">${displayName} • ${msg.created}</div>
-            <div class="message-text">${msg.message}</div>
-        </div>
-    `;
-
-    return messageEl;
-};
-
-// Add "Load More" button
-const addLoadMoreButton = (container) => {
-    const loadMoreDiv = document.createElement('div');
-    loadMoreDiv.className = 'load-more-messages';
-    loadMoreDiv.innerHTML = `
-        <button class="load-more-btn" onclick="loadMoreMessages()">
-            <i class="fas fa-chevron-up"></i>
-            Load more messages
-        </button>
-    `;
-    container.insertBefore(loadMoreDiv, container.firstChild);
-};
-
-// Setup scroll listener for conversations with 11-19 messages (no throttling)
-const setupScrollListener = (container) => {
-    container.addEventListener('scroll', async () => {
-        if (container.scrollTop <= 50 && chatState.hasMore && !chatState.loading) {
-            await loadMoreMessages();
-        }
-    });
-};
-
-// Setup throttled scroll listener for conversations with 20+ messages
-const setupThrottledScrollListener = (container) => {
-    const throttledHandler = throttle(async () => {
-        if (container.scrollTop <= 50 && chatState.hasMore && !chatState.loading) {
-            await loadMoreMessages();
-        }
-    }, 300); // 300ms throttle to prevent spam
-
-    container.addEventListener('scroll', throttledHandler);
-};
-
-// Load more messages (loads exactly 10 more)
-const loadMoreMessages = async () => {
-    if (chatState.loading || !chatState.hasMore) return;
-
-    chatState.loading = true;
-    const container = chatState.container;
-
-    // Show loading indicator
-    const loadingEl = document.createElement('div');
-    loadingEl.className = 'loading-more-messages';
-    loadingEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading more messages...';
-    container.insertBefore(loadingEl, container.firstChild);
-
-    const scrollHeight = container.scrollHeight;
-
-    try {
-        const data = await loadPaginatedMessages(chatState.currentUserId, chatState.otherUserId, chatState.offset, 10);
-        if (!data) return;
-
-        // Remove loading indicator
-        loadingEl.remove();
-
-        chatState.offset += data.messages.length;
-        chatState.hasMore = data.hasMore;
-
-        // Handle bulk loading for large message sets (more than 10 messages)
-        if (data.messages.length > 10) {
-            await loadMoreMessagesInBatches(data.messages.reverse(), container, scrollHeight);
-        } else {
-            // Load normally for small message sets
-            data.messages.reverse().forEach(msg => {
-                const messageEl = createMessageElement(msg, chatState.currentUserId);
-                const loadMoreBtn = container.querySelector('.load-more-messages');
-                if (loadMoreBtn) {
-                    container.insertBefore(messageEl, loadMoreBtn.nextSibling);
-                } else {
-                    container.insertBefore(messageEl, container.firstChild);
-                }
-            });
-
-            container.scrollTop = container.scrollHeight - scrollHeight;
-        }
-
-        if (!data.hasMore) {
-            const loadMoreBtn = container.querySelector('.load-more-messages');
-            if (loadMoreBtn) loadMoreBtn.remove();
-        }
-
-    } catch (error) {
-        console.error('Error loading more messages:', error);
-        loadingEl.remove();
-    } finally {
-        chatState.loading = false;
-    }
-};
-
-// Make loadMoreMessages globally available for button clicks
-window.loadMoreMessages = loadMoreMessages;
 
 const addFooter = () => {
     const existingFooter = document.querySelector("footer");
