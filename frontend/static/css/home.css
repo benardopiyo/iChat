@@ -1985,24 +1985,60 @@ body.modal-open {
     transform: translateY(10px);
 }
 
-/* Mobile adjustments for bulk loading */
+/* Load More Messages Button Styles */
+.load-more-messages {
+    text-align: center;
+    padding: 8px 12px;
+    margin: 8px 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.load-more-btn {
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto;
+}
+
+.load-more-btn:hover {
+    background: #3a7bc8;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+}
+
+.load-more-btn:active {
+    transform: translateY(0);
+}
+
+.load-more-btn i {
+    font-size: 10px;
+}
+
+/* Mobile adjustments for pagination */
 @media (max-width: 768px) {
-    .bulk-loading-indicator {
-        padding: 12px;
+    .load-more-messages {
+        padding: 6px 8px;
         margin: 6px 0;
     }
 
-    .bulk-loading-content i {
-        font-size: 16px;
-    }
-
-    .bulk-loading-content span {
-        font-size: 13px;
-    }
-
-    .batch-progress {
+    .load-more-btn {
+        padding: 6px 12px;
         font-size: 11px;
-        padding: 3px 6px;
+    }
+
+    .load-more-btn i {
+        font-size: 9px;
     }
 }
 
